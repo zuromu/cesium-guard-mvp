@@ -69,9 +69,7 @@
       async function loadAll() {
         try {
           const [fRes, zRes, sRes, hRes] = await Promise.all([
-            fetch(API + '/f
-
-arms').then(r=>r.json()),
+            fetch(API + '/farms').then(r=>r.json()),
             fetch(API + '/zones').then(r=>r.json()),
             fetch(API + '/stats').then(r=>r.json()),
             fetch(API + '/heatmap').then(r=>r.json())
