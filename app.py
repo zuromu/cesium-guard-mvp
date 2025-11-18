@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory
+rom flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import random, statistics, math, os
@@ -7,6 +7,7 @@ from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
+app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False  # Production best practice
 
 # -----------------------
 # CONFIGURATION
@@ -169,39 +170,26 @@ def get_status(value):
     return "Safe"
 
 def compute_zone_aggregation():
-    """
-    Aggregate farms by geographic zones
-    Returns zone statistics including avg contamination, severity, recommended radius
-    """
     zone_values = {k: [] for k in ZONES_META.keys()}
     zone_farms = {k: [] for k in ZONES_META.keys()}
-
-    # Assign farms to nearest zone
     for f in FARMS:
         zid = closest_zone_id(f["lat"], f["lng"])
         if not zid:
             continue
         zone_values[zid].append(f["value"])
         zone_farms[zid].append(f)
-
     zones_out = []
     for zid, meta in ZONES_META.items():
         vals = zone_values[zid]
-        avg_val = round(statistics.mean(vals), 2) if vals else 0
+        avg_val = round(sum(vals)/len(vals), 2) if vals else 0
         severity = get_status(avg_val)
-        
-        # Dynamic radius based on contamination severity
-        # Critical: 140km, High: 80km, Medium: 50km, Safe: 30km
         radius_map = {"Critical": 140000, "High": 80000, "Medium": 50000, "Safe": 30000}
         radius = radius_map.get(severity, 30000)
-        
-        # Find top contaminated farm in zone
         top_farm = None
         export_ready_count = 0
         if zone_farms[zid]:
             top_farm = max(zone_farms[zid], key=lambda x: x["value"])
             export_ready_count = sum(1 for f in zone_farms[zid] if f["export_ready"])
-        
         zones_out.append({
             "id": zid,
             "name": meta["name"],
@@ -211,45 +199,36 @@ def compute_zone_aggregation():
             "severity": severity,
             "radius_m": radius,
             "top_farm": {
-                "id": top_farm["id"], 
-                "name": top_farm["name"], 
+                "id": top_farm["id"],
+                "name": top_farm["name"],
                 "value": top_farm["value"],
                 "value_bq": top_farm["value_bq"]
             } if top_farm else None,
             "count_farms": len(zone_farms[zid]),
             "export_ready": export_ready_count
         })
-    
     return sorted(zones_out, key=lambda x: x["avg"], reverse=True)
 
 def agg_stats():
-    """Calculate comprehensive dashboard statistics"""
     vals = [f["value"] for f in FARMS]
     if not vals:
         return {"total": 0, "avg": 0, "max": 0, "min": 0}
-    
     total = len(FARMS)
     avgv = round(sum(vals) / len(vals), 2)
-    
-    # Count by status
     critical = sum(1 for v in vals if v >= THRESHOLD_CRITICAL)
     high = sum(1 for v in vals if THRESHOLD_HIGH <= v < THRESHOLD_CRITICAL)
     medium = sum(1 for v in vals if THRESHOLD_MEDIUM <= v < THRESHOLD_HIGH)
     safe = sum(1 for v in vals if v < THRESHOLD_MEDIUM)
-    
-    # Top hotspots
     top_hotspots = sorted([
         {
-            "id": f["id"], 
-            "name": f["name"], 
+            "id": f["id"],
+            "name": f["name"],
             "location": f["location"],
             "value": f["value"],
             "value_bq": f["value_bq"],
             "status": f["status"]
         } for f in FARMS
     ], key=lambda x: x["value"], reverse=True)[:5]
-    
-    # Timeseries: average across all farms for each day
     days = len(FARMS[0]["history"]) if FARMS else 0
     timeseries = []
     for i in range(days):
@@ -257,16 +236,11 @@ def agg_stats():
         date_obj = now - timedelta(days=days-i-1)
         timeseries.append({
             "t": date_obj.date().isoformat(),
-            "v": round(statistics.mean(vals_day), 2),
+            "v": round(sum(vals_day)/len(vals_day), 2),
             "label": date_obj.strftime("%d %b")
         })
-    
-    # Export readiness
     export_ready = sum(1 for f in FARMS if f["export_ready"])
-    
-    # FDA compliance check
     fda_compliant = sum(1 for f in FARMS if f["value_bq"] < FDA_INTERVENTION_LEVEL)
-    
     return {
         "total": total,
         "avg": avgv,
@@ -399,7 +373,7 @@ def generate_token(username):
 
 def get_user_from_request():
     auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
+    if (auth.startswith("Bearer ")):
         token = auth.split(" ", 1)[1].strip()
         return TOKENS.get(token)
     return None
@@ -461,6 +435,14 @@ def root():
         ]
     })
 
+@app.route("/api/version", methods=["GET"])
+def api_version():
+    return jsonify({
+        "name": "Cesium Guard MVP",
+        "version": "2.0",
+        "date": "2025-11-19"
+    })
+
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
@@ -501,10 +483,10 @@ def api_farms():
     
     farms_filtered = FARMS
     
-    if status_filter:
+    if (status_filter):
         farms_filtered = [f for f in farms_filtered if f["status"].lower() == status_filter.lower()]
 
-    if zone_filter:
+    if (zone_filter):
         zone = zone_filter.lower()
         farms_filtered = [
             f for f in farms_filtered
@@ -750,18 +732,33 @@ def health():
 # -----------------------
 # ERROR HANDLERS
 # -----------------------
+@app.errorhandler(405)
+def method_not_allowed(error):
+    return jsonify({"error": "Method not allowed"}), 405
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    print("[ERROR]", e)
+    traceback.print_exc()
+    return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Endpoint not found"}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
+    import traceback
+    print("[ERROR]", error)
+    traceback.print_exc()
     return jsonify({"error": "Internal server error"}), 500
 
 # -----------------------
 # RUN SERVER
 # -----------------------
 if __name__ == "__main__":
+    # Only run the server for local development; Gunicorn will handle production
     port = int(os.getenv("PORT", 8000))
     print("=" * 60)
     print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
