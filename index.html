@@ -43,7 +43,7 @@
   <div id="root" class="h-full"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
     const API = '/api';
 
     function colorForSeverity(sev) {
@@ -53,64 +53,141 @@
       return '#16a34a';
     }
 
+    function RoleBadge({ role }) {
+      if (!role) return null;
+      const colors = {
+        admin: 'bg-purple-600/30 text-purple-200 border border-purple-500/50',
+        field: 'bg-emerald-600/20 text-emerald-200 border border-emerald-400/40'
+      };
+      const label = role === 'admin' ? 'Admin Command' : 'Field Inspector';
+      return <span className={`px-3 py-1 text-xs rounded-full ${colors[role] || 'bg-slate-700'}`}>{label}</span>;
+    }
+
     function App() {
+      const [token, setToken] = useState(() => localStorage.getItem('cg_token') || '');
+      const [profile, setProfile] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('cg_profile')) || null; } catch(e) { return null; }
+      });
       const [farms, setFarms] = useState([]);
       const [zones, setZones] = useState([]);
       const [stats, setStats] = useState({});
-      const [selectedFarm, setSelectedFarm] = useState(null);
-      const [newSample, setNewSample] = useState({ farm_id:'', value:'', inspector:'' });
+      const [intel, setIntel] = useState(null);
+      const [newSample, setNewSample] = useState({ farm_id:'', value:'', inspector:'', notes:'' });
+      const [filters, setFilters] = useState({ status:'', zone:'' });
+      const [loginForm, setLoginForm] = useState({ username:'', password:'' });
+      const [authError, setAuthError] = useState('');
+      const [mapReady, setMapReady] = useState(false);
+      const [loadingBoard, setLoadingBoard] = useState(false);
       const mapRef = useRef(null);
       const markersRef = useRef([]);
       const heatRef = useRef(null);
       const zoneLayersRef = useRef([]);
       const timeseriesChartRef = useRef(null);
+      const isAdmin = profile?.role === 'admin';
+      const isField = profile?.role === 'field';
 
-      // load all
-      async function loadAll() {
+      const saveAuth = (tok, prof) => {
+        if (tok) {
+          localStorage.setItem('cg_token', tok);
+          localStorage.setItem('cg_profile', JSON.stringify(prof));
+        } else {
+          localStorage.removeItem('cg_token');
+          localStorage.removeItem('cg_profile');
+          if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+          }
+          markersRef.current = [];
+          heatRef.current = null;
+          zoneLayersRef.current = [];
+          setMapReady(false);
+        }
+        setToken(tok);
+        setProfile(prof || null);
+      };
+
+      const handleLogout = useCallback(async (opts={}) => {
         try {
-          const [fRes, zRes, sRes, hRes] = await Promise.all([
-            fetch(API + '/farms').then(r=>r.json()),
+          if (token && !opts.silent) {
+            await fetch(API + '/logout', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+          }
+        } catch(e) {
+          console.warn(e);
+        } finally {
+          saveAuth('', null);
+        }
+      }, [token]);
+
+      const apiFetch = useCallback(async (path, options={}) => {
+        const opts = { ...options, headers: { ...(options.headers || {}) } };
+        if (token) {
+          opts.headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(API + path, opts);
+        if (res.status === 401) {
+          await handleLogout({ silent: true });
+          throw new Error('Unauthorized');
+        }
+        return res.json();
+      }, [token, handleLogout]);
+
+      const loadAll = useCallback(async () => {
+        try {
+          setLoadingBoard(true);
+          const qs = new URLSearchParams();
+          if (filters.status) qs.append('status', filters.status);
+          if (filters.zone) qs.append('zone', filters.zone);
+          const [fRes, zRes, sRes, hRes, intelRes] = await Promise.all([
+            fetch(API + '/farms' + (qs.toString() ? `?${qs.toString()}` : '')).then(r=>r.json()),
             fetch(API + '/zones').then(r=>r.json()),
             fetch(API + '/stats').then(r=>r.json()),
-            fetch(API + '/heatmap').then(r=>r.json())
+            fetch(API + '/heatmap').then(r=>r.json()),
+            fetch(API + '/intel').then(r=>r.json())
           ]);
           setFarms(fRes);
           setZones(zRes);
           setStats(sRes);
-
-          // heat points
+          setIntel(intelRes);
           if (heatRef.current) {
             heatRef.current.setLatLngs(hRes.points.map(p => [p[0], p[1], p[2]]));
           }
         } catch (e) {
           console.error(e);
+        } finally {
+          setLoadingBoard(false);
         }
-      }
+      }, [filters]);
 
       useEffect(() => {
-        // init map
-        if (mapRef.current) return;
+        if (!profile) return;
+        if (mapRef.current) {
+          setMapReady(true);
+          return;
+        }
         const map = L.map('map', { zoomControl: true }).setView([-2.5, 118], 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
-
-        // heat
         const heat = L.heatLayer([], { radius: 25, blur: 35, maxZoom: 12 }).addTo(map);
         heatRef.current = heat;
-
         mapRef.current = map;
-        loadAll();
+        setMapReady(true);
+      }, [profile]);
 
-        // poll every 12s for live feel
+      useEffect(() => {
+        if (!profile || !mapReady) return;
+        loadAll();
         const iv = setInterval(loadAll, 12000);
         return () => clearInterval(iv);
-      }, []);
+      }, [profile, mapReady, loadAll]);
 
-      // update markers when farms change
       useEffect(() => {
-        const map = mapRef.current; if (!map) return;
-        // remove existing markers
+        if (!mapReady) return;
+        const map = mapRef.current; 
+        if (!map) return;
         markersRef.current.forEach(m => map.removeLayer(m)); markersRef.current = [];
         farms.forEach(f => {
           const el = document.createElement('div');
@@ -118,7 +195,6 @@
           el.style.height = '14px';
           el.style.borderRadius = '50%';
           el.style.border = '2px solid white';
-          // color by status
           let bg = '#16a34a';
           if (f.status === 'High') bg = '#f97316';
           if (f.status === 'Critical') bg = '#ef4444';
@@ -130,15 +206,14 @@
           m.bindPopup(`<strong>${f.name}</strong><br/>${f.location}<br/><b>${f.value} ppb</b><br/>Status: ${f.status}<br/>Last: ${new Date(f.lastUpdate).toLocaleString()}<hr/><div style="max-height:140px;overflow:auto;">History:<br/>${(f.history||[]).slice().reverse().map(h=>`${new Date(h.time).toLocaleString()} — ${h.inspector}: ${h.value} ppb`).join('<br/>')}</div>`);
           markersRef.current.push(m);
         });
-      }, [farms]);
+      }, [farms, mapReady]);
 
-      // update zones (circles)
       useEffect(() => {
+        if (!mapReady) return;
         const map = mapRef.current; if (!map) return;
         zoneLayersRef.current.forEach(l => map.removeLayer(l)); zoneLayersRef.current = [];
         zones.forEach(z => {
           const color = colorForSeverity(z.severity || z.severity);
-          // draw circle using center and radius_m
           const circle = L.circle(z.center, {
             color: color,
             fillColor: color,
@@ -149,12 +224,11 @@
           circle.bindPopup(`<strong>${z.name}</strong><br/>Avg: ${z.avg} ppb<br/>Severity: ${z.severity}<br/>Farms: ${z.count_farms}<br/>Top: ${z.top_farm ? (z.top_farm.name + ' (' + z.top_farm.value + ' ppb)') : '-'}`);
           zoneLayersRef.current.push(circle);
         });
-      }, [zones]);
+      }, [zones, mapReady]);
 
-      // draw timeseries chart
       useEffect(() => {
         const ctx = document.getElementById('timeseries');
-        if (!ctx) return;
+        if (!ctx || !profile) return;
         const tdata = stats.timeseries || [];
         const labels = tdata.map(p => p.t);
         const vals = tdata.map(p => p.v);
@@ -169,157 +243,390 @@
             options: { plugins:{ legend:{display:false} }, scales:{ x:{ ticks:{ color:'#cbd5e1' } }, y:{ ticks:{ color:'#cbd5e1' } } } }
           });
         }
-      }, [stats]);
+      }, [stats, profile]);
 
       async function submitSample(e) {
         e && e.preventDefault();
+        if (!token) { alert('Login first'); return; }
         if (!newSample.farm_id || newSample.value==='') { alert('Complete form'); return; }
-        const res = await fetch(API + '/samples', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ farm_id: Number(newSample.farm_id), value: Number(newSample.value), inspector: newSample.inspector || 'field' })});
-        const j = await res.json();
-        if (j.success) {
-          setNewSample({ farm_id:'', value:'', inspector:'' });
-          await loadAll();
-          alert('Sample added');
-        } else {
-          alert('Error: ' + (j.error || j.message || 'unknown'));
+        try {
+          const res = await apiFetch('/samples', { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify({ 
+              farm_id: Number(newSample.farm_id), 
+              value: Number(newSample.value), 
+              inspector: newSample.inspector || profile?.name || 'field',
+              notes: newSample.notes
+            })
+          });
+          if (res.success) {
+            setNewSample({ farm_id:'', value:'', inspector:'', notes:'' });
+            await loadAll();
+            alert('Sample added');
+          } else {
+            alert(res.error || 'Unable to submit');
+          }
+        } catch (err) {
+          alert('Unauthorized or server error');
         }
       }
 
       async function simulate() {
-        await fetch(API + '/simulate');
-        await loadAll();
+        try {
+          await apiFetch('/simulate');
+          await loadAll();
+        } catch (err) {
+          alert('Simulation requires admin login');
+        }
       }
 
-      // top hotspots
+      async function exportData() {
+        try {
+          const data = await apiFetch('/export');
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `cesium-guard-export-${Date.now()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          alert('Export restricted to admin');
+        }
+      }
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setAuthError('');
+        try {
+          const res = await fetch(API + '/login', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username: loginForm.username.trim(), password: loginForm.password })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            setAuthError(data.error || 'Login failed');
+            return;
+          }
+          saveAuth(data.token, data.profile);
+          setLoginForm({ username:'', password:'' });
+          await loadAll();
+          fetchOperations();
+        } catch(err) {
+          setAuthError('Server unreachable');
+        }
+      };
+
+      const statusOptions = ['', 'Safe', 'Medium', 'High', 'Critical'];
       const top = (stats.top_hotspots || []).slice(0,5);
+      const riskMatrix = stats.risk_matrix || {};
+      const priorityZones = intel?.priority_zones || [];
+      const gateways = intel?.export_gateways || [];
+      const playbooks = intel?.playbooks || [];
+      const aiProjection = intel?.ai_projection;
+
+      if (!token || !profile) {
+        return (
+          <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center px-6">
+            <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-center">
+              <div>
+                <p className="uppercase tracking-[0.3em] text-xs text-slate-400 mb-3">Cesium Guard</p>
+                <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">Secure Traceability Mission Console</h1>
+                <p className="text-slate-300 mb-4">Masuk untuk memetakan risiko cesium secara real-time, men-trigger sampling kilat, dan menjaga jalur ekspor tetap dipercaya buyer global.</p>
+                <ul className="space-y-2 text-sm text-slate-300">
+                  <li>• Heatmap risiko nasional dengan radius adaptif</li>
+                  <li>• Mode simulasi untuk stress-test rantai pasok</li>
+                  <li>• Admin toolkit siap ekspor JSON compliance</li>
+                </ul>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6">
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold">Login Console</h2>
+                  <p className="text-sm text-slate-400">Gunakan akun demo admin atau field.</p>
+                </div>
+                <form className="space-y-3" onSubmit={handleLogin}>
+                  <div>
+                    <label className="text-xs text-slate-400">Username</label>
+                    <input value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full mt-1 rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm" placeholder="admin / inspector" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400">Password</label>
+                    <input type="password" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full mt-1 rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm" placeholder="secureadmin / fieldops" />
+                  </div>
+                  {authError && <div className="text-red-400 text-sm">{authError}</div>}
+                  <button type="submit" className="w-full py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 font-semibold">Enter dashboard</button>
+                </form>
+                <div className="text-xs text-slate-500 mt-4">
+                  Demo credentials:<br/>Admin — admin / secureadmin<br/>Inspector — inspector / fieldops
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div className="min-h-screen flex flex-col">
-          {/* header */}
           <header className="bg-slate-900/70 px-6 py-3 border-b border-slate-700">
-            <div className="max-w-[1400px] mx-auto flex justify-between items-center">
+            <div className="max-w-[1400px] mx-auto flex justify-between items-center flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-500 rounded-lg flex items-center justify-center">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 12c0 5 4 9 9 9s9-4 9-9" stroke="#fff" strokeWidth="1.2"/></svg>
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-rose-500 rounded-lg flex items-center justify-center">
+                  <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+                    <path d="M14 24c0-7.7 6.3-14 14-14h18" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M50 24c0 9.9-8.1 18-18 18S14 33.9 14 24" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M46 34c4 0 6 3 6 6s-2 6-6 6-10-3-14-7-6-9-6-13" stroke="#fb7185" strokeWidth="2" strokeLinecap="round"/>
+                    <circle cx="44" cy="16" r="2" fill="#fff"/>
+                  </svg>
                 </div>
                 <div>
                   <h1 className="text-lg font-semibold">Cesium Guard</h1>
-                  <div className="text-xs text-slate-400">Live zones, hotspots & actionable stats</div>
+                  <div className="text-xs text-slate-400">Traceability & early-warning intelligence</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button onClick={loadAll} className="px-3 py-2 bg-slate-800 rounded">Refresh</button>
-                <button onClick={simulate} className="px-3 py-2 bg-orange-500 rounded">Simulate</button>
-                <div className="text-xs text-slate-400 text-right">
-                  <div>Last checked</div>
-                  <div className="font-semibold">{new Date().toLocaleString()}</div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {loadingBoard ? <span className="text-xs text-slate-400">Syncing data…</span> : <span className="text-xs text-emerald-400">Live</span>}
+                <RoleBadge role={profile?.role} />
+                <div className="text-xs text-slate-300 text-right">
+                  <div className="font-semibold">{profile?.name}</div>
+                  <div className="text-slate-400">{profile?.team}</div>
                 </div>
+                <button onClick={loadAll} className="px-3 py-2 bg-slate-800 rounded">Refresh</button>
+                <button onClick={simulate} className={`px-3 py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Simulate</button>
+                <button onClick={handleLogout} className="px-3 py-2 bg-slate-800 rounded">Logout</button>
               </div>
             </div>
           </header>
 
-          {/* main */}
           <main className="flex-1 overflow-auto">
-            <div className="max-w-[1400px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
-              {/* left */}
-              <aside className="col-span-4 space-y-6">
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                  <h3 className="text-sm text-slate-300 mb-2">Dashboard Stats</h3>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
-                    <div className="bg-slate-900 p-3 rounded text-center">
-                      <div className="text-xs text-slate-400">Farms</div>
-                      <div className="text-lg font-bold">{stats.total || 0}</div>
-                    </div>
-                    <div className="bg-slate-900 p-3 rounded text-center">
-                      <div className="text-xs text-slate-400">Avg (ppb)</div>
-                      <div className="text-lg font-bold">{stats.avg || 0}</div>
-                    </div>
-                    <div className="bg-slate-900 p-3 rounded text-center">
-                      <div className="text-xs text-slate-400">Max</div>
-                      <div className="text-lg font-bold">{stats.max || 0}</div>
-                    </div>
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    <div>Critical: <span className="font-semibold text-red-400">{stats.high||0}</span></div>
-                    <div>Medium: <span className="font-semibold text-orange-400">{stats.medium||0}</span></div>
-                    <div>Safe: <span className="font-semibold text-green-400">{stats.safe||0}</span></div>
-                  </div>
+            <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Status filter</label>
+                  <select value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+                    {statusOptions.map(opt => <option key={opt} value={opt}>{opt || 'All statuses'}</option>)}
+                  </select>
                 </div>
-
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                  <h4 className="text-sm text-slate-300 mb-2">Top hotspots</h4>
-                  <ol className="list-decimal pl-4 text-sm">
-                    {top.length ? top.map(h => <li key={h.id}><strong>{h.name}</strong> — {h.value} ppb</li>) : <li className="text-slate-400">No data</li>}
-                  </ol>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Zone</label>
+                  <select value={filters.zone} onChange={e => setFilters({...filters, zone: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+                    <option value=''>All Indonesia</option>
+                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
                 </div>
+                <div className="flex items-end justify-end gap-2">
+                  <button onClick={() => setFilters({ status:'', zone:'' })} className="px-3 py-2 text-sm bg-slate-800 rounded">Reset</button>
+                  <button onClick={loadAll} className="px-4 py-2 text-sm bg-blue-600 rounded">Apply</button>
+                </div>
+              </div>
 
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                  <h4 className="text-sm text-slate-300 mb-2">Add sample</h4>
-                  <form onSubmit={submitSample} className="space-y-2">
-                    <select value={newSample.farm_id} onChange={e => setNewSample({...newSample, farm_id: e.target.value})} className="w-full p-2 bg-slate-900 rounded text-sm">
-                      <option value=''>-- pilih farm --</option>
-                      {farms.map(f => <option key={f.id} value={f.id}>{f.name} ({f.location})</option>)}
-                    </select>
-                    <input type="number" step="0.1" value={newSample.value} onChange={e => setNewSample({...newSample, value: e.target.value})} placeholder="Value (ppb)" className="w-full p-2 bg-slate-900 rounded text-sm"/>
-                    <input type="text" value={newSample.inspector} onChange={e => setNewSample({...newSample, inspector: e.target.value})} placeholder="Inspector" className="w-full p-2 bg-slate-900 rounded text-sm"/>
-                    <div className="flex gap-2">
-                      <button type="submit" className="flex-1 bg-blue-600 py-2 rounded">Submit</button>
-                      <button type="button" onClick={() => setNewSample({farm_id:'',value:'',inspector:''})} className="px-3 bg-slate-700 rounded">Reset</button>
+              <div className="grid grid-cols-12 gap-6">
+                <aside className="col-span-12 lg:col-span-4 space-y-6">
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-3">
+                    <h3 className="text-sm text-slate-300">Dashboard Stats</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-slate-900 p-3 rounded text-center">
+                        <div className="text-xs text-slate-400">Farms</div>
+                        <div className="text-lg font-bold">{stats.total || 0}</div>
+                      </div>
+                      <div className="bg-slate-900 p-3 rounded text-center">
+                        <div className="text-xs text-slate-400">Avg (ppb)</div>
+                        <div className="text-lg font-bold">{stats.avg || 0}</div>
+                      </div>
+                      <div className="bg-slate-900 p-3 rounded text-center">
+                        <div className="text-xs text-slate-400">Max</div>
+                        <div className="text-lg font-bold">{stats.max || 0}</div>
+                      </div>
                     </div>
-                  </form>
-                </div>
-
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                  <h4 className="text-sm text-slate-300 mb-2">Recent trips</h4>
-                  <div className="text-xs text-slate-400">
-                    {(stats.recent_trips || []).map((t,i) => <div key={i} className="mb-2"><b>{t.location}</b><div className="text-slate-400 text-xs">{t.time}</div></div>)}
-                  </div>
-                </div>
-              </aside>
-
-              {/* main */}
-              <section className="col-span-8 space-y-6">
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold">Indonesia — Live Contamination Map</h3>
-                    <div className="flex gap-2">
-                      <div className="px-2 py-1 rounded bg-red-600 text-sm">Critical</div>
-                      <div className="px-2 py-1 rounded bg-orange-500 text-sm">High</div>
-                      <div className="px-2 py-1 rounded bg-yellow-500 text-sm">Medium</div>
-                      <div className="px-2 py-1 rounded bg-green-600 text-sm">Safe</div>
+                    <div className="text-xs text-slate-400 space-y-1">
+                      <div>Critical: <span className="font-semibold text-red-400">{stats.critical||0}</span></div>
+                      <div>High: <span className="font-semibold text-orange-400">{stats.high||0}</span></div>
+                      <div>Medium: <span className="font-semibold text-amber-300">{stats.medium||0}</span></div>
+                      <div>Safe: <span className="font-semibold text-green-400">{stats.safe||0}</span></div>
                     </div>
                   </div>
-                  <div id="map" style={{height: 560}} className="rounded-lg overflow-hidden"></div>
-                </div>
 
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <h4 className="text-sm text-slate-300 mb-2">Average contamination — trend</h4>
-                    <canvas id="timeseries" height="120"></canvas>
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Risk matrix</h4>
+                    <div className="space-y-2 text-xs text-slate-300">
+                      <div className="flex justify-between"><span>Critical</span><span>{riskMatrix.critical_pct || 0}%</span></div>
+                      <div className="flex justify-between"><span>High</span><span>{riskMatrix.high_pct || 0}%</span></div>
+                      <div className="flex justify-between"><span>Medium</span><span>{riskMatrix.medium_pct || 0}%</span></div>
+                      <div className="flex justify-between"><span>Safe</span><span>{riskMatrix.safe_pct || 0}%</span></div>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-3">
+                      {(riskMatrix.priority_actions || []).map((a,i)=><div key={i} className="mb-1">• {a}</div>)}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm text-slate-300 mb-2">Zones summary</h4>
-                    <div className="space-y-2 text-sm">
-                      {zones.map(z => (
-                        <div key={z.id} className="flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold">{z.name}</div>
-                            <div className="text-xs text-slate-400">Avg {z.avg} ppb — {z.count_farms} farms</div>
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Sampling SLA</h4>
+                    <div className="text-3xl font-semibold text-white">{intel?.sampling_backlog ?? '-'}</div>
+                    <div className="text-xs text-slate-400">Farms overdue &gt; 36 jam</div>
+                    <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 mt-3">
+                      <div>
+                        <div className="text-slate-400">Pending samples</div>
+                        <div className="text-lg font-bold">{intel?.pending_samples ?? '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-400">SLA pressure</div>
+                        <div className="text-lg font-bold">{intel?.sla_pressure ?? 0}%</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-2">Target respon {intel?.sla_hours || 24} jam</div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Top hotspots</h4>
+                    <ol className="list-decimal pl-4 text-sm">
+                      {top.length ? top.map(h => <li key={h.id}><strong>{h.name}</strong> — {h.value} ppb</li>) : <li className="text-slate-400">No data</li>}
+                    </ol>
+                  </div>
+
+                  {(isAdmin || isField) ? (
+                    <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                      <h4 className="text-sm text-slate-300 mb-2">Add sample</h4>
+                      <form onSubmit={submitSample} className="space-y-2">
+                        <select value={newSample.farm_id} onChange={e => setNewSample({...newSample, farm_id: e.target.value})} className="w-full p-2 bg-slate-900 rounded text-sm">
+                          <option value=''>-- pilih farm --</option>
+                          {farms.map(f => <option key={f.id} value={f.id}>{f.name} ({f.location})</option>)}
+                        </select>
+                        <input type="number" step="0.1" value={newSample.value} onChange={e => setNewSample({...newSample, value: e.target.value})} placeholder="Value (ppb)" className="w-full p-2 bg-slate-900 rounded text-sm"/>
+                        <input type="text" value={newSample.inspector} onChange={e => setNewSample({...newSample, inspector: e.target.value})} placeholder="Inspector" className="w-full p-2 bg-slate-900 rounded text-sm"/>
+                        <textarea value={newSample.notes} onChange={e => setNewSample({...newSample, notes: e.target.value})} placeholder="Notes" className="w-full p-2 bg-slate-900 rounded text-sm" rows="2"></textarea>
+                        <div className="flex gap-2">
+                          <button type="submit" className="flex-1 bg-blue-600 py-2 rounded">Submit</button>
+                          <button type="button" onClick={() => setNewSample({farm_id:'',value:'',inspector:'',notes:''})} className="px-3 bg-slate-700 rounded">Reset</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-800/30 rounded-2xl p-4 border border-slate-700 text-sm text-slate-300">
+                      Field sampling hanya untuk akun admin/field.
+                    </div>
+                  )}
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Recent field trips</h4>
+                    <div className="text-xs text-slate-400">
+                      {(stats.recent_trips || []).map((t,i) => <div key={i} className="mb-2"><b>{t.location}</b><div className="text-slate-400 text-xs">{t.time}</div></div>)}
+                    </div>
+                  </div>
+                </aside>
+
+                <section className="col-span-12 lg:col-span-8 space-y-6">
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                      <div>
+                        <h3 className="text-lg font-semibold">Indonesia — Live Contamination Map</h3>
+                        <p className="text-xs text-slate-400">Filters applied: {filters.status || 'all statuses'}, {filters.zone || 'all zones'}</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <div className="px-2 py-1 rounded bg-red-600/80 text-sm">Critical</div>
+                        <div className="px-2 py-1 rounded bg-orange-500 text-sm">High</div>
+                        <div className="px-2 py-1 rounded bg-yellow-500 text-sm">Medium</div>
+                        <div className="px-2 py-1 rounded bg-green-600 text-sm">Safe</div>
+                      </div>
+                    </div>
+                    <div id="map" style={{height: 520}} className="rounded-lg overflow-hidden"></div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <h4 className="text-sm text-slate-300 mb-2">Average contamination — trend</h4>
+                      <canvas id="timeseries" height="120"></canvas>
+                    </div>
+                    <div>
+                      <h4 className="text-sm text-slate-300 mb-2">Zones summary</h4>
+                      <div className="space-y-2 text-sm max-h-60 overflow-auto pr-2">
+                        {zones.map(z => (
+                          <div key={z.id} className="flex items-center justify-between">
+                            <div>
+                              <div className="font-semibold">{z.name}</div>
+                              <div className="text-xs text-slate-400">Avg {z.avg} ppb — {z.count_farms} farms</div>
+                            </div>
+                            <div style={{width:14, height:14, background: colorForSeverity(z.severity), borderRadius:7}} />
                           </div>
-                          <div style={{width:14, height:14, background: colorForSeverity(z.severity), borderRadius:7}} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm text-slate-300">Action center</h4>
+                        <span className="text-xs text-slate-400">AI projection: {aiProjection ? `${aiProjection.next_avg} ppb (${aiProjection.signal})` : '-'}</span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        {priorityZones.length ? priorityZones.map((z, idx) => (
+                          <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-slate-100">{z.name}</div>
+                              <div className="text-xs text-slate-400">{z.count} farms · {z.avg} ppb</div>
+                            </div>
+                            <span className="text-xs px-2 py-1 rounded-full" style={{background: colorForSeverity(z.severity), color:'#fff'}}>{z.severity}</span>
+                          </div>
+                        )) : <div className="text-xs text-slate-400">Tidak ada zona prioritas.</div>}
+                      </div>
+                      <div>
+                        <h5 className="text-xs text-slate-400 mb-1">Export gateways</h5>
+                        <div className="space-y-2 text-sm">
+                          {gateways.map((g, idx) => (
+                            <div key={idx} className="flex items-center justify-between border border-slate-700 rounded-lg px-3 py-2">
+                              <div>
+                                <div className="font-semibold">{g.name}</div>
+                                <div className="text-xs text-slate-400">{g.throughput}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs text-slate-300">{g.status}</div>
+                                <span className="text-xs text-slate-400">Risk: {g.risk}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm text-slate-300">Admin toolkit</h4>
+                        <RoleBadge role={profile?.role} />
+                      </div>
+                      <div className="space-y-3">
+                        <button onClick={exportData} className={`w-full py-2 rounded ${isAdmin ? 'bg-emerald-600' : 'bg-slate-700 cursor-not-allowed'}`}>Download compliance JSON</button>
+                        <button onClick={simulate} className={`w-full py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Run simulation</button>
+                        <div className="text-xs text-slate-400">JSON export berisi summary, zona, dan bukti kepatuhan untuk briefing FDA.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Playbooks & escalations</h4>
+                    <div className="space-y-3 text-sm">
+                      {playbooks.map((p, idx) => (
+                        <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40">
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold text-slate-100">{p.title}</div>
+                            <span className="text-xs text-slate-400">{p.status}</span>
+                          </div>
+                          <div className="text-xs text-slate-400">{p.owner}</div>
+                          <div className="text-xs text-slate-300 mt-1">{p.impact}</div>
+                          <div className="text-xs text-slate-400 mt-1">Next step: {p.cta}</div>
                         </div>
                       ))}
+                      {!playbooks.length && <div className="text-xs text-slate-400">Playbook data unavailable.</div>}
                     </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </div>
             </div>
           </main>
         </div>
       );
     }
 
-    // mount
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
