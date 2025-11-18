@@ -427,23 +427,36 @@ def require_role(allowed=None):
 # -----------------------
 @app.route("/")
 def root():
-    """Serve the main HTML page safely in Railway"""
+    """Serve the main HTML page safely for deployment"""
+    # Try to serve index.html from the same directory as app.py or project root
     try:
+        # Try local app directory first
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        return send_from_directory(base_dir, "index.html")
-    except:
-        return jsonify({
-            "status": "Cesium Guard API Running",
-            "version": "2.0",
-            "endpoints": [
-                "/api/farms",
-                "/api/zones",
-                "/api/stats",
-                "/api/heatmap",
-                "/api/samples",
-                "/api/simulate"
-            ]
-        })
+        index_path = os.path.join(base_dir, "index.html")
+        if os.path.exists(index_path):
+            return send_from_directory(base_dir, "index.html")
+        # Try project root (one level up)
+        parent_dir = os.path.dirname(base_dir)
+        index_path2 = os.path.join(parent_dir, "index.html")
+        if os.path.exists(index_path2):
+            return send_from_directory(parent_dir, "index.html")
+    except Exception as e:
+        print(f"[WARN] Could not serve index.html: {e}")
+    # Fallback: API status
+    return jsonify({
+        "status": "Cesium Guard API Running",
+        "version": "2.0",
+        "endpoints": [
+            "/api/farms",
+            "/api/zones",
+            "/api/stats",
+            "/api/heatmap",
+            "/api/samples",
+            "/api/simulate",
+            "/api/alerts",
+            "/api/intel"
+        ]
+    })
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
