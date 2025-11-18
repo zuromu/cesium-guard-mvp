@@ -6,17 +6,7 @@ from uuid import uuid4
 from functools import wraps
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-# Request logging middleware
-@app.before_request
-def log_request():
-    print(f"[REQUEST] {request.method} {request.path} from {request.remote_addr}")
-
-@app.after_request
-def log_response(response):
-    print(f"[RESPONSE] {request.path} -> {response.status_code}")
-    return response
+CORS(app)
 
 # -----------------------
 # CONFIGURATION
@@ -435,21 +425,41 @@ def require_role(allowed=None):
 # -----------------------
 # API ENDPOINTS
 # -----------------------
-# Health check for Railway - MUST respond quickly
-@app.route("/health", methods=["GET", "HEAD"])
-def health():
-    return "OK", 200
-
 @app.route("/")
 def root():
-    """Health check endpoint"""
+    """Serve index.html for frontend, fallback to API status."""
+    try:
+        # Try local app directory first
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        index_path = os.path.join(base_dir, "index.html")
+        if os.path.exists(index_path):
+            return send_from_directory(base_dir, "index.html")
+        # Try project root (one level up)
+        parent_dir = os.path.dirname(base_dir)
+        index_path2 = os.path.join(parent_dir, "index.html")
+        if os.path.exists(index_path2):
+            return send_from_directory(parent_dir, "index.html")
+    except Exception as e:
+        print(f"[WARN] Could not serve index.html: {e}")
+    # Fallback: API status
     return jsonify({
-        "status": "ok",
-        "message": "Cesium Guard API Running",
+        "status": "✅ Cesium Guard API Running",
         "version": "2.0",
         "farms_loaded": len(FARMS),
-        "zones": len(ZONES_META)
-    }), 200
+        "zones": len(ZONES_META),
+        "message": "System operational",
+        "endpoints": [
+            "/api/farms",
+            "/api/zones",
+            "/api/stats",
+            "/api/heatmap",
+            "/api/samples",
+            "/api/simulate",
+            "/api/alerts",
+            "/api/intel",
+            "/health"
+        ]
+    })
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
@@ -749,16 +759,16 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 # -----------------------
-# STARTUP
+# RUN SERVER
 # -----------------------
-print("=" * 60)
-print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
-print("=" * 60)
-print(f"📊 Loaded {len(FARMS)} farms across {len(ZONES_META)} zones")
-print("=" * 60)
-
-# For local development only
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
-    print(f"🌐 Local development server starting on port: {port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    print("=" * 60)
+    print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
+    print("=" * 60)
+    print(f"📊 Loaded {len(FARMS)} farms across {len(ZONES_META)} zones")
+    print(f"🌐 Server starting on port: {port}")
+    print(f"📡 Health check: http://0.0.0.0:{port}/health")
+    print("=" * 60)
+    print("\nPress CTRL+C to stop\n")
+    app.run(host="0.0.0.0", port=port, debug=False)
