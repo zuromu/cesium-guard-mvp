@@ -203,7 +203,7 @@
           if (f.status === 'Critical') el.classList.add('pulse');
           const icon = L.divIcon({ html: el.outerHTML, className:'', iconSize:[24,24], iconAnchor:[12,12] });
           const m = L.marker([f.lat, f.lng], { icon }).addTo(map);
-          m.bindPopup(`<strong>${f.name}</strong><br/>${f.location}<br/><b>${f.value} ppb</b><br/>Status: ${f.status}<br/>Last: ${new Date(f.lastUpdate).toLocaleString()}<hr/><div style="max-height:140px;overflow:auto;">History:<br/>${(f.history||[]).slice().reverse().map(h=>`${new Date(h.time).toLocaleString()} — ${h.inspector}: ${h.value} ppb`).join('<br/>')}</div>`);
+          m.bindPopup(`<strong>${f.name}</strong><br/>${f.location}<br/><b>${f.value} ppb</b><br/>Status: ${f.status}<br/>Last: ${new Date(f.lastUpdate).toLocaleString()}<hr/><div style="max-height:140px;overflow:auto;">History:<br/>${(f.history||[]).slice().reverse().map(h=>`${new Date(h.time).toLocaleString()} - ${h.inspector}: ${h.value} ppb`).join('<br/>')}</div>`);
           markersRef.current.push(m);
         });
       }, [farms, mapReady]);
@@ -244,6 +244,13 @@
           });
         }
       }, [stats, profile]);
+
+      useEffect(() => {
+        if (!profile && timeseriesChartRef.current) {
+          timeseriesChartRef.current.destroy();
+          timeseriesChartRef.current = null;
+        }
+      }, [profile]);
 
       async function submitSample(e) {
         e && e.preventDefault();
@@ -313,7 +320,6 @@
           saveAuth(data.token, data.profile);
           setLoginForm({ username:'', password:'' });
           await loadAll();
-          fetchOperations();
         } catch(err) {
           setAuthError('Server unreachable');
         }
@@ -322,28 +328,40 @@
       const statusOptions = ['', 'Safe', 'Medium', 'High', 'Critical'];
       const top = (stats.top_hotspots || []).slice(0,5);
       const riskMatrix = stats.risk_matrix || {};
+      const compliance = stats.compliance || {};
       const priorityZones = intel?.priority_zones || [];
       const gateways = intel?.export_gateways || [];
-      const playbooks = intel?.playbooks || [];
+      const samplingQueue = intel?.sampling_queue || [];
       const aiProjection = intel?.ai_projection;
+      const fallbackAssignments = (stats.top_hotspots || []).slice(0, 3).map(h => ({
+        name: h.name,
+        severity: h.status,
+        avg: h.value,
+        count: 1,
+        action: "Ambil sampel ulang & laporkan HQ"
+      }));
+      const fieldAssignments = (priorityZones.length ? priorityZones : fallbackAssignments).map(item => ({
+        ...item,
+        action: item.action || "Ambil sampel ulang & laporkan HQ"
+      }));
 
       if (!token || !profile) {
         return (
           <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center px-6">
-            <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-center">
+            <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8 items-center">
               <div>
-                <p className="uppercase tracking-[0.3em] text-xs text-slate-400 mb-3">Cesium Guard</p>
-                <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">Secure Traceability Mission Console</h1>
-                <p className="text-slate-300 mb-4">Masuk untuk memetakan risiko cesium secara real-time, men-trigger sampling kilat, dan menjaga jalur ekspor tetap dipercaya buyer global.</p>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li>• Heatmap risiko nasional dengan radius adaptif</li>
-                  <li>• Mode simulasi untuk stress-test rantai pasok</li>
-                  <li>• Admin toolkit siap ekspor JSON compliance</li>
-                </ul>
+                <h1 className="text-4xl font-semibold text-white mb-2 flex items-center gap-2">
+                  <span role="img" aria-label="shrimp">🦐</span> Cesium Guard
+                </h1>
+                <p className="text-slate-300 mb-4">Live traceability console for cesium-safe shrimp exports.</p>
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <span className="text-lg">📡</span>
+                  <span>Monitor hotspots, trigger sampling, and keep exporter trust high.</span>
+                </div>
               </div>
               <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6">
                 <div className="mb-4">
-                  <h2 className="text-xl font-semibold">Login Console</h2>
+                  <h2 className="text-xl font-semibold">Masuk console</h2>
                   <p className="text-sm text-slate-400">Gunakan akun demo admin atau field.</p>
                 </div>
                 <form className="space-y-3" onSubmit={handleLogin}>
@@ -359,7 +377,7 @@
                   <button type="submit" className="w-full py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 font-semibold">Enter dashboard</button>
                 </form>
                 <div className="text-xs text-slate-500 mt-4">
-                  Demo credentials:<br/>Admin — admin / secureadmin<br/>Inspector — inspector / fieldops
+                  Demo credentials:<br/>Admin - admin / secureadmin<br/>Inspector - inspector / fieldops
                 </div>
               </div>
             </div>
@@ -393,7 +411,7 @@
                   <div className="text-slate-400">{profile?.team}</div>
                 </div>
                 <button onClick={loadAll} className="px-3 py-2 bg-slate-800 rounded">Refresh</button>
-                <button onClick={simulate} className={`px-3 py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Simulate</button>
+                <button onClick={simulate} disabled={!isAdmin} className={`px-3 py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Simulate</button>
                 <button onClick={handleLogout} className="px-3 py-2 bg-slate-800 rounded">Logout</button>
               </div>
             </div>
@@ -478,9 +496,31 @@
                   </div>
 
                   <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                    <h4 className="text-sm text-slate-300 mb-2">Compliance snapshot</h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs text-slate-400">
+                      <div>
+                        <div className="text-slate-500">FDA limit</div>
+                        <div className="text-lg font-semibold text-white">{compliance.fda_standard || '-'} Bq/kg</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">IDN limit</div>
+                        <div className="text-lg font-semibold text-white">{compliance.indonesia_standard || '-'} Bq/kg</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">Compliant farms</div>
+                        <div className="text-lg font-semibold text-emerald-400">{compliance.compliant_farms || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">Compliance rate</div>
+                        <div className="text-lg font-semibold text-emerald-300">{compliance.compliance_rate || 0}%</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
                     <h4 className="text-sm text-slate-300 mb-2">Top hotspots</h4>
                     <ol className="list-decimal pl-4 text-sm">
-                      {top.length ? top.map(h => <li key={h.id}><strong>{h.name}</strong> — {h.value} ppb</li>) : <li className="text-slate-400">No data</li>}
+                      {top.length ? top.map(h => <li key={h.id}><strong>{h.name}</strong> - {h.value} ppb</li>) : <li className="text-slate-400">No data</li>}
                     </ol>
                   </div>
 
@@ -519,7 +559,7 @@
                   <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
                     <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                       <div>
-                        <h3 className="text-lg font-semibold">Indonesia — Live Contamination Map</h3>
+                        <h3 className="text-lg font-semibold">Indonesia - Live Contamination Map</h3>
                         <p className="text-xs text-slate-400">Filters applied: {filters.status || 'all statuses'}, {filters.zone || 'all zones'}</p>
                       </div>
                       <div className="flex gap-2 flex-wrap">
@@ -534,7 +574,7 @@
 
                   <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="md:col-span-2">
-                      <h4 className="text-sm text-slate-300 mb-2">Average contamination — trend</h4>
+                      <h4 className="text-sm text-slate-300 mb-2">Average contamination - trend</h4>
                       <canvas id="timeseries" height="120"></canvas>
                     </div>
                     <div>
@@ -544,7 +584,7 @@
                           <div key={z.id} className="flex items-center justify-between">
                             <div>
                               <div className="font-semibold">{z.name}</div>
-                              <div className="text-xs text-slate-400">Avg {z.avg} ppb — {z.count_farms} farms</div>
+                              <div className="text-xs text-slate-400">Avg {z.avg} ppb - {z.count_farms} farms</div>
                             </div>
                             <div style={{width:14, height:14, background: colorForSeverity(z.severity), borderRadius:7}} />
                           </div>
@@ -554,71 +594,118 @@
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm text-slate-300">Action center</h4>
-                        <span className="text-xs text-slate-400">AI projection: {aiProjection ? `${aiProjection.next_avg} ppb (${aiProjection.signal})` : '-'}</span>
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        {priorityZones.length ? priorityZones.map((z, idx) => (
-                          <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40 flex items-center justify-between gap-3">
-                            <div>
-                              <div className="font-semibold text-slate-100">{z.name}</div>
-                              <div className="text-xs text-slate-400">{z.count} farms · {z.avg} ppb</div>
-                            </div>
-                            <span className="text-xs px-2 py-1 rounded-full" style={{background: colorForSeverity(z.severity), color:'#fff'}}>{z.severity}</span>
+                    {isAdmin ? (
+                      <>
+                        <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm text-slate-300">Action center (Admin)</h4>
+                            <span className="text-xs text-slate-400">AI projection: {aiProjection ? `${aiProjection.next_avg} ppb (${aiProjection.signal})` : '-'}</span>
                           </div>
-                        )) : <div className="text-xs text-slate-400">Tidak ada zona prioritas.</div>}
-                      </div>
-                      <div>
-                        <h5 className="text-xs text-slate-400 mb-1">Export gateways</h5>
-                        <div className="space-y-2 text-sm">
-                          {gateways.map((g, idx) => (
-                            <div key={idx} className="flex items-center justify-between border border-slate-700 rounded-lg px-3 py-2">
-                              <div>
-                                <div className="font-semibold">{g.name}</div>
-                                <div className="text-xs text-slate-400">{g.throughput}</div>
+                          <p className="text-xs text-slate-400">Gunakan daftar berikut untuk menentukan zona yang perlu dikunci, serta hub ekspor yang harus diawasi.</p>
+                          <div className="space-y-2 text-sm">
+                            {priorityZones.length ? priorityZones.map((z, idx) => (
+                              <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40 flex items-center justify-between gap-3">
+                                <div>
+                                  <div className="font-semibold text-slate-100">{z.name}</div>
+                                  <div className="text-xs text-slate-400">{z.count} farms · {z.avg} ppb</div>
+                                  <div className="text-xs text-indigo-300">{z.action}</div>
+                                </div>
+                                <span className="text-xs px-2 py-1 rounded-full" style={{background: colorForSeverity(z.severity), color:'#fff'}}>{z.severity}</span>
                               </div>
-                              <div className="text-right">
-                                <div className="text-xs text-slate-300">{g.status}</div>
-                                <span className="text-xs text-slate-400">Risk: {g.risk}</span>
-                              </div>
+                            )) : <div className="text-xs text-slate-400">Tidak ada zona prioritas aktif - lanjutkan monitoring.</div>}
+                          </div>
+                          <div>
+                            <h5 className="text-xs text-slate-400 mb-1">Export gateways</h5>
+                            <div className="space-y-2 text-sm">
+                              {gateways.map((g, idx) => (
+                                <div key={idx} className="flex items-center justify-between border border-slate-700 rounded-lg px-3 py-2">
+                                  <div>
+                                    <div className="font-semibold">{g.name}</div>
+                                    <div className="text-xs text-slate-400">{g.throughput}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-xs text-slate-300">{g.status}</div>
+                                    <span className="text-xs text-slate-400">Risk: {g.risk}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm text-slate-300">Admin toolkit</h4>
-                        <RoleBadge role={profile?.role} />
-                      </div>
-                      <div className="space-y-3">
-                        <button onClick={exportData} className={`w-full py-2 rounded ${isAdmin ? 'bg-emerald-600' : 'bg-slate-700 cursor-not-allowed'}`}>Download compliance JSON</button>
-                        <button onClick={simulate} className={`w-full py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Run simulation</button>
-                        <div className="text-xs text-slate-400">JSON export berisi summary, zona, dan bukti kepatuhan untuk briefing FDA.</div>
-                      </div>
-                    </div>
+                        <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm text-slate-300">Admin toolkit</h4>
+                            <RoleBadge role={profile?.role} />
+                          </div>
+                          <div className="space-y-3">
+                            <button onClick={exportData} className={`w-full py-2 rounded ${isAdmin ? 'bg-emerald-600' : 'bg-slate-700 cursor-not-allowed'}`}>Download compliance JSON</button>
+                            <button onClick={simulate} className={`w-full py-2 rounded ${isAdmin ? 'bg-orange-500' : 'bg-slate-700 cursor-not-allowed'}`}>Run simulation</button>
+                            <div className="text-xs text-slate-400">JSON export berisi summary, zona, dan bukti kepatuhan untuk briefing FDA.</div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm text-slate-300">Field missions</h4>
+                            <span className="text-xs text-slate-400">Prioritas update tiap 12 detik</span>
+                          </div>
+                          <p className="text-xs text-slate-400">Ikuti daftar ini untuk memilih lokasi sampling dan laporkan ke admin setelah selesai.</p>
+                          <div className="space-y-2 text-sm">
+                            {fieldAssignments.map((task, idx) => (
+                              <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="font-semibold">{task.name}</div>
+                                    <div className="text-xs text-slate-400">{task.count || '-'} farms · {task.avg} ppb</div>
+                                  </div>
+                                  <span className="text-xs px-2 py-1 rounded-full" style={{background: colorForSeverity(task.severity || 'High'), color:'#fff'}}>{task.severity || 'High'}</span>
+                                </div>
+                                <div className="text-xs text-slate-300 mt-1">{task.action}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm text-slate-300">Field toolkit</h4>
+                            <RoleBadge role={profile?.role} />
+                          </div>
+                          <div className="text-xs text-slate-400 space-y-2">
+                            <p>1. Ambil sampel terbaru setelah menekan tombol submit di panel kiri.</p>
+                            <p>2. Tandai catatan inspector agar admin bisa mengaudit.</p>
+                            <p>3. Hubungi admin jika perlu menghentikan ekspor dari hub tertentu.</p>
+                          </div>
+                          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="mt-3 w-full py-2 rounded bg-blue-600 text-sm">Buka form sampling</button>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                    <h4 className="text-sm text-slate-300 mb-2">Playbooks & escalations</h4>
-                    <div className="space-y-3 text-sm">
-                      {playbooks.map((p, idx) => (
-                        <div key={idx} className="border border-slate-700 rounded-xl p-3 bg-slate-900/40">
-                          <div className="flex items-center justify-between">
-                            <div className="font-semibold text-slate-100">{p.title}</div>
-                            <span className="text-xs text-slate-400">{p.status}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm text-slate-300">Sampling queue</h4>
+                      <span className="text-xs text-slate-400">{(samplingQueue || []).length} lokasi overdue</span>
+                    </div>
+                    <div className="space-y-2 text-sm max-h-64 overflow-auto pr-1">
+                      {samplingQueue.length ? samplingQueue.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between border border-slate-700 rounded-lg px-3 py-2 bg-slate-900/30">
+                          <div>
+                            <div className="font-semibold text-slate-100">{item.name}</div>
+                            <div className="text-xs text-slate-400">{item.zone} · {item.last_update}</div>
                           </div>
-                          <div className="text-xs text-slate-400">{p.owner}</div>
-                          <div className="text-xs text-slate-300 mt-1">{p.impact}</div>
-                          <div className="text-xs text-slate-400 mt-1">Next step: {p.cta}</div>
+                          <div className="text-right">
+                            <div className="text-xs text-slate-300">{item.value} ppb</div>
+                            <span className="text-xs px-2 py-1 rounded-full" style={{background: colorForSeverity(item.severity), color:'#fff'}}>{item.severity}</span>
+                          </div>
                         </div>
-                      ))}
-                      {!playbooks.length && <div className="text-xs text-slate-400">Playbook data unavailable.</div>}
+                      )) : <div className="text-xs text-slate-400">Semua lokasi ter-update.</div>}
                     </div>
                   </div>
+
                 </section>
               </div>
             </div>
