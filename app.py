@@ -427,14 +427,22 @@ def require_role(allowed=None):
 # -----------------------
 @app.route("/")
 def root():
-    """Serve the main HTML page"""
+    """Serve the main HTML page safely in Railway"""
     try:
-        return send_from_directory('.', 'index.html')
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return send_from_directory(base_dir, "index.html")
     except:
         return jsonify({
             "status": "Cesium Guard API Running",
             "version": "2.0",
-            "endpoints": ["/api/farms", "/api/zones", "/api/stats", "/api/heatmap", "/api/samples", "/api/simulate"]
+            "endpoints": [
+                "/api/farms",
+                "/api/zones",
+                "/api/stats",
+                "/api/heatmap",
+                "/api/samples",
+                "/api/simulate"
+            ]
         })
 
 @app.route("/api/login", methods=["POST"])
