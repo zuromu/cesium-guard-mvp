@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cesium Guard - Shrimp Farm Monitoring</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stat-card .label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .high { color: #e74c3c; }
+        .medium { color: #f39c12; }
+        .safe { color: #27ae60; }
+        
+        #map {
+            height: 500px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .leaflet-popup-content {
+            min-width: 200px;
+        }
+        
+        .popup-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .popup-info {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .status-high { background: #e74c3c; }
+        .status-medium { background: #f39c12; }
+        .status-safe { background: #27ae60; }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            background: #5568d3;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .modal h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            margin-top: 10px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🦐 Cesium Guard</h1>
+        <p>Real-time Shrimp Farm Contamination Monitoring System</p>
+    </div>
+
+    <div class="container">
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="label">Total Farms</div>
+                <div class="number" id="total-farms">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">High Risk</div>
+                <div class="number high" id="high-risk">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Medium Risk</div>
+                <div class="number medium" id="medium-risk">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Safe</div>
+                <div class="number safe" id="safe">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg Cesium (ppb)</div>
+                <div class="number" id="avg-cesium">-</div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+        
+        <div class="legend">
+            <strong>Legend:</strong>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #27ae60;"></div>
+                <span>Safe (< 30 ppb)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f39c12;"></div>
+                <span>Medium Risk (30-49 ppb)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e74c3c;"></div>
+                <span>High Risk (≥ 50 ppb)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding samples -->
+    <div id="sampleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Add Contamination Sample</h2>
+            <form id="sampleForm">
+                <div class="form-group">
+                    <label>Farm:</label>
+                    <input type="text" id="farm-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Cesium Level (ppb):</label>
+                    <input type="number" id="cesium-value" placeholder="Enter value" required step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Inspector Name:</label>
+                    <input type="text" id="inspector-name" placeholder="Your name" required>
+                </div>
+                <button type="submit" class="btn" style="width: 100%;">Submit Sample</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let map;
+        let currentFarmId = null;
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([-6.5, 110.0], 7);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const stats = await response.json();
+                
+                document.getElementById('total-farms').textContent = stats.total_farms;
+                document.getElementById('high-risk').textContent = stats.high_risk;
+                document.getElementById('medium-risk').textContent = stats.medium_risk;
+                document.getElementById('safe').textContent = stats.safe;
+                document.getElementById('avg-cesium').textContent = stats.avg_cesium;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Load farms and display on map
+        async function loadFarms() {
+            try {
+                const response = await fetch(`${API_URL}/farms`);
+                const farms = await response.json();
+                
+                farms.forEach(farm => {
+                    const color = farm.status === "High" ? "#e74c3c" :
+                                  farm.status === "Medium" ? "#f39c12" : "#27ae60";
+                    
+                    // Add marker
+                    const marker = L.circleMarker([farm.lat, farm.lng], {
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.7,
+                        radius: 12,
+                        weight: 2
+                    }).addTo(map);
+                    
+                    // Popup content
+                    const popupContent = `
+                        <div class="popup-title">${farm.name}</div>
+                        <div class="popup-info">📍 ${farm.location}</div>
+                        <div class="popup-info">
+                            Status: <span class="status-badge status-${farm.status.toLowerCase()}">${farm.status}</span>
+                        </div>
+                        <div class="popup-info">☢️ Cesium: ${farm.value} ppb</div>
+                        <div class="popup-info">📊 Samples: ${farm.history.length}</div>
+                        <button class="btn" onclick="openModal(${farm.id}, '${farm.name}')">Add Sample</button>
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                    
+                    // Add risk radius for high contamination
+                    if (farm.status === "High") {
+                        L.circle([farm.lat, farm.lng], {
+                            radius: 5000, // 5km radius
+                            color: "#e74c3c",
+                            fillColor: "#e74c3c",
+                            fillOpacity: 0.1,
+                            weight: 2,
+                            dashArray: '5, 5'
+                        }).addTo(map).bindPopup(`<b>Risk Zone</b><br>5km radius around ${farm.name}`);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading farms:', error);
+                alert('Failed to load farms. Make sure backend is running!');
+            }
+        }
+
+        // Open modal
+        function openModal(farmId, farmName) {
+            currentFarmId = farmId;
+            document.getElementById('farm-name').value = farmName;
+            document.getElementById('sampleModal').style.display = 'block';
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('sampleModal').style.display = 'none';
+            document.getElementById('sampleForm').reset();
+        }
+
+        // Submit sample
+        document.getElementById('sampleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const value = document.getElementById('cesium-value').value;
+            const inspector = document.getElementById('inspector-name').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/sample`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        farm_id: currentFarmId,
+                        value: parseFloat(value),
+                        inspector: inspector
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Sample added successfully!');
+                    closeModal();
+                    location.reload(); // Refresh to show updated data
+                } else {
+                    alert('❌ Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error submitting sample:', error);
+                alert('Failed to submit sample!');
+            }
+        });
+
+        // Initialize app
+        window.onload = () => {
+            initMap();
+            loadStats();
+            loadFarms();
+        };
+
+        // Close modal when clicking outside
+        window.onclick = (event) => {
+            const modal = document.getElementById('sampleModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+    </script>
+</body>
+</html>
