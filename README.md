@@ -77,7 +77,7 @@ Simple REST API:
 
 ## Notes
 
-Project ini dibuat buat hackathon. Masih banyak yang bisa di-improve, tapi MVP-nya udah jalan dengan baik.
+Project ini dibuat untuk hackathon. Masih banyak yang bisa di-improve, tapi MVP-nya udah jalan dengan baik.
 
 Kalo ada bug atau mau contribute, feel free.
 
