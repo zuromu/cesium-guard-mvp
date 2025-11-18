@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cesium Guard - Shrimp Farm Monitoring</title>
+    <title>Cesium Guard - AI-Powered Shrimp Farm Monitoring</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -14,112 +15,327 @@
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.1;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: float 20s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            25% { transform: translateY(-100px) translateX(50px); }
+            50% { transform: translateY(-50px) translateX(-30px); }
+            75% { transform: translateY(-80px) translateX(20px); }
         }
         
-        .header {
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 40px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 32px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-        
-        .header p {
-            opacity: 0.9;
-            font-size: 14px;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
         
         .container {
             max-width: 1400px;
-            margin: 20px auto;
-            padding: 0 20px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-section {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+
+        .hero-title {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            letter-spacing: -1px;
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            opacity: 0.95;
+            font-weight: 400;
+            letter-spacing: 0.5px;
         }
         
-        .stats {
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
         
         .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 28px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 48px rgba(102, 126, 234, 0.3);
+            border-color: #667eea;
+        }
+
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+            display: inline-block;
         }
         
-        .stat-card .number {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 10px 0;
+        .stat-number {
+            font-size: 40px;
+            font-weight: 800;
+            margin: 12px 0;
+            line-height: 1;
         }
         
-        .stat-card .label {
-            color: #666;
+        .stat-label {
+            color: #64748b;
             font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        .high { color: #e74c3c; }
-        .medium { color: #f39c12; }
-        .safe { color: #27ae60; }
+        .high { 
+            color: #ef4444;
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .medium { 
+            color: #f59e0b;
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .safe { 
+            color: #10b981;
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            margin-bottom: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 0 10px;
+        }
+
+        .map-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
         
         #map {
-            height: 500px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 550px;
+            border-radius: 16px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
+        .leaflet-popup-content-wrapper {
+            border-radius: 16px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
         .leaflet-popup-content {
-            min-width: 200px;
+            margin: 0;
+            min-width: 280px;
+        }
+
+        .popup-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
         }
         
         .popup-title {
-            font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 10px;
-            color: #333;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 6px;
+        }
+
+        .popup-location {
+            opacity: 0.95;
+            font-size: 13px;
+        }
+
+        .popup-body {
+            padding: 20px;
+            background: white;
         }
         
         .popup-info {
-            margin: 5px 0;
-            font-size: 14px;
+            margin: 12px 0;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 16px;
         }
         
         .status-badge {
             display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
             color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
-        .status-high { background: #e74c3c; }
-        .status-medium { background: #f39c12; }
-        .status-safe { background: #27ae60; }
+        .status-high { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .status-medium { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .status-safe { background: linear-gradient(135deg, #10b981, #059669); }
         
         .btn {
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
+            padding: 12px 28px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 14px;
-            margin-top: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 16px;
+            width: 100%;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
         
         .btn:hover {
-            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
         }
         
         .modal {
@@ -130,164 +346,339 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         
         .modal-content {
             background: white;
-            margin: 10% auto;
-            padding: 30px;
-            border-radius: 10px;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 24px;
             width: 90%;
             max-width: 500px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s;
+            overflow: hidden;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            position: relative;
         }
         
-        .modal h2 {
-            margin-bottom: 20px;
-            color: #333;
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .modal-body {
+            padding: 30px;
         }
         
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 24px;
         }
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #555;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #334155;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .form-group input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
         
         .close {
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            color: #aaa;
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-size: 32px;
+            font-weight: 300;
+            color: white;
             cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
         }
         
         .close:hover {
-            color: #000;
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
         }
         
         .legend {
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            margin-top: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .legend-title {
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #1e293b;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
         }
         
         .legend-item {
-            margin: 5px 0;
             display: flex;
             align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .legend-item:hover {
+            background: rgba(102, 126, 234, 0.05);
         }
         
         .legend-color {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            margin-right: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .legend-text {
+            font-size: 14px;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            padding: 30px;
+            margin-top: 40px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 15px 20px;
+            }
+
+            .hero-title {
+                font-size: 32px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+            }
+
+            .stat-card {
+                padding: 20px;
+            }
+
+            .stat-number {
+                font-size: 32px;
+            }
+
+            #map {
+                height: 400px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🦐 Cesium Guard</h1>
-        <p>Real-time Shrimp Farm Contamination Monitoring System</p>
+    <div class="bg-particles">
+        <div class="particle" style="width: 4px; height: 4px; top: 10%; left: 20%; animation-delay: 0s;"></div>
+        <div class="particle" style="width: 6px; height: 6px; top: 30%; left: 80%; animation-delay: 2s;"></div>
+        <div class="particle" style="width: 3px; height: 3px; top: 60%; left: 10%; animation-delay: 4s;"></div>
+        <div class="particle" style="width: 5px; height: 5px; top: 80%; left: 70%; animation-delay: 1s;"></div>
+        <div class="particle" style="width: 4px; height: 4px; top: 50%; left: 50%; animation-delay: 3s;"></div>
     </div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">🦐</div>
+            <div class="logo-text">Cesium Guard</div>
+        </div>
+        <div class="nav-badge">AI-Powered Monitoring</div>
+    </nav>
 
     <div class="container">
-        <div class="stats" id="stats">
+        <div class="hero-section">
+            <h1 class="hero-title">Shrimp Farm Safety Monitor</h1>
+            <p class="hero-subtitle">Real-time cesium contamination tracking across Indonesia</p>
+        </div>
+
+        <div class="stats-grid">
             <div class="stat-card">
-                <div class="label">Total Farms</div>
-                <div class="number" id="total-farms">-</div>
+                <div class="stat-icon">🏭</div>
+                <div class="stat-label">Total Farms</div>
+                <div class="stat-number" id="total-farms">-</div>
             </div>
             <div class="stat-card">
-                <div class="label">High Risk</div>
-                <div class="number high" id="high-risk">-</div>
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-label">High Risk</div>
+                <div class="stat-number high" id="high-risk">-</div>
             </div>
             <div class="stat-card">
-                <div class="label">Medium Risk</div>
-                <div class="number medium" id="medium-risk">-</div>
+                <div class="stat-icon">⚡</div>
+                <div class="stat-label">Medium Risk</div>
+                <div class="stat-number medium" id="medium-risk">-</div>
             </div>
             <div class="stat-card">
-                <div class="label">Safe</div>
-                <div class="number safe" id="safe">-</div>
+                <div class="stat-icon">✅</div>
+                <div class="stat-label">Safe</div>
+                <div class="stat-number safe" id="safe">-</div>
             </div>
             <div class="stat-card">
-                <div class="label">Avg Cesium (ppb)</div>
-                <div class="number" id="avg-cesium">-</div>
+                <div class="stat-icon">📊</div>
+                <div class="stat-label">Avg Cesium (ppb)</div>
+                <div class="stat-number" style="color: #667eea;" id="avg-cesium">-</div>
             </div>
         </div>
 
-        <div id="map"></div>
+        <div class="map-container">
+            <div class="map-header">
+                <div class="map-title">📍 Live Map View</div>
+                <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Data</button>
+            </div>
+            <div id="map"></div>
+        </div>
         
         <div class="legend">
-            <strong>Legend:</strong>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #27ae60;"></div>
-                <span>Safe (< 30 ppb)</span>
+            <div class="legend-title">🎨 Risk Level Legend</div>
+            <div class="legend-grid">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #10b981, #059669);"></div>
+                    <div class="legend-text"><strong>Safe:</strong> < 30 ppb</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #f59e0b, #d97706);"></div>
+                    <div class="legend-text"><strong>Medium:</strong> 30-49 ppb</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ef4444, #dc2626);"></div>
+                    <div class="legend-text"><strong>High Risk:</strong> ≥ 50 ppb</div>
+                </div>
             </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #f39c12;"></div>
-                <span>Medium Risk (30-49 ppb)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #e74c3c;"></div>
-                <span>High Risk (≥ 50 ppb)</span>
-            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>Cesium Guard</strong> | Powered by AI Technology | RISTEK Mini Hackathon 2025</p>
         </div>
     </div>
 
-    <!-- Modal for adding samples -->
+    <!-- Modal -->
     <div id="sampleModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Add Contamination Sample</h2>
-            <form id="sampleForm">
-                <div class="form-group">
-                    <label>Farm:</label>
-                    <input type="text" id="farm-name" readonly>
-                </div>
-                <div class="form-group">
-                    <label>Cesium Level (ppb):</label>
-                    <input type="number" id="cesium-value" placeholder="Enter value" required step="0.1">
-                </div>
-                <div class="form-group">
-                    <label>Inspector Name:</label>
-                    <input type="text" id="inspector-name" placeholder="Your name" required>
-                </div>
-                <button type="submit" class="btn" style="width: 100%;">Submit Sample</button>
-            </form>
+            <div class="modal-header">
+                <h2>📋 Add Contamination Sample</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="sampleForm">
+                    <div class="form-group">
+                        <label>🏭 Farm Location</label>
+                        <input type="text" id="farm-name" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>☢️ Cesium Level (ppb)</label>
+                        <input type="number" id="cesium-value" placeholder="Enter measurement" required step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>👤 Inspector Name</label>
+                        <input type="text" id="inspector-name" placeholder="Your name" required>
+                    </div>
+                    <button type="submit" class="btn">✅ Submit Sample</button>
+                </form>
+            </div>
         </div>
     </div>
 
     <script>
-        const API_URL = 'http://localhost:5000/api';
+        const API_URL = 'http://127.0.0.1:5000/api';
         let map;
         let currentFarmId = null;
 
-        // Initialize map
         function initMap() {
             map = L.map('map').setView([-6.5, 110.0], 7);
             
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
             }).addTo(map);
         }
 
-        // Load statistics
         async function loadStats() {
             try {
                 const response = await fetch(`${API_URL}/stats`);
@@ -303,76 +694,96 @@
             }
         }
 
-        // Load farms and display on map
         async function loadFarms() {
             try {
                 const response = await fetch(`${API_URL}/farms`);
                 const farms = await response.json();
                 
                 farms.forEach(farm => {
-                    const color = farm.status === "High" ? "#e74c3c" :
-                                  farm.status === "Medium" ? "#f39c12" : "#27ae60";
+                    const colors = {
+                        "High": "#ef4444",
+                        "Medium": "#f59e0b",
+                        "Safe": "#10b981"
+                    };
                     
-                    // Add marker
+                    const color = colors[farm.status];
+                    
                     const marker = L.circleMarker([farm.lat, farm.lng], {
                         color: color,
                         fillColor: color,
-                        fillOpacity: 0.7,
-                        radius: 12,
-                        weight: 2
+                        fillOpacity: 0.8,
+                        radius: 14,
+                        weight: 3
                     }).addTo(map);
                     
-                    // Popup content
                     const popupContent = `
-                        <div class="popup-title">${farm.name}</div>
-                        <div class="popup-info">📍 ${farm.location}</div>
-                        <div class="popup-info">
-                            Status: <span class="status-badge status-${farm.status.toLowerCase()}">${farm.status}</span>
+                        <div class="popup-header">
+                            <div class="popup-title">${farm.name}</div>
+                            <div class="popup-location">📍 ${farm.location}</div>
                         </div>
-                        <div class="popup-info">☢️ Cesium: ${farm.value} ppb</div>
-                        <div class="popup-info">📊 Samples: ${farm.history.length}</div>
-                        <button class="btn" onclick="openModal(${farm.id}, '${farm.name}')">Add Sample</button>
+                        <div class="popup-body">
+                            <div class="popup-info">
+                                <div class="info-icon" style="background: ${color}20; color: ${color};">📊</div>
+                                <div>
+                                    Status: <span class="status-badge status-${farm.status.toLowerCase()}">${farm.status}</span>
+                                </div>
+                            </div>
+                            <div class="popup-info">
+                                <div class="info-icon" style="background: #e0e7ff; color: #667eea;">☢️</div>
+                                <div><strong>Cesium:</strong> ${farm.value} ppb</div>
+                            </div>
+                            <div class="popup-info">
+                                <div class="info-icon" style="background: #dbeafe; color: #3b82f6;">📋</div>
+                                <div><strong>Samples:</strong> ${farm.history.length} records</div>
+                            </div>
+                            <button class="btn" onclick="openModal(${farm.id}, '${farm.name}')">
+                                ➕ Add New Sample
+                            </button>
+                        </div>
                     `;
                     
-                    marker.bindPopup(popupContent);
+                    marker.bindPopup(popupContent, { maxWidth: 300 });
                     
-                    // Add risk radius for high contamination
                     if (farm.status === "High") {
                         L.circle([farm.lat, farm.lng], {
-                            radius: 5000, // 5km radius
-                            color: "#e74c3c",
-                            fillColor: "#e74c3c",
-                            fillOpacity: 0.1,
+                            radius: 5000,
+                            color: "#ef4444",
+                            fillColor: "#ef4444",
+                            fillOpacity: 0.15,
                             weight: 2,
-                            dashArray: '5, 5'
-                        }).addTo(map).bindPopup(`<b>Risk Zone</b><br>5km radius around ${farm.name}`);
+                            dashArray: '10, 10'
+                        }).addTo(map).bindPopup(`
+                            <div style="text-align: center; padding: 10px;">
+                                <strong style="color: #ef4444; font-size: 16px;">⚠️ Risk Zone</strong><br>
+                                <span style="color: #64748b;">5km radius around ${farm.name}</span>
+                            </div>
+                        `);
                     }
                 });
             } catch (error) {
                 console.error('Error loading farms:', error);
-                alert('Failed to load farms. Make sure backend is running!');
+                alert('⚠️ Failed to load farms. Make sure backend is running at http://127.0.0.1:5000');
             }
         }
 
-        // Open modal
         function openModal(farmId, farmName) {
             currentFarmId = farmId;
             document.getElementById('farm-name').value = farmName;
             document.getElementById('sampleModal').style.display = 'block';
         }
 
-        // Close modal
         function closeModal() {
             document.getElementById('sampleModal').style.display = 'none';
             document.getElementById('sampleForm').reset();
         }
 
-        // Submit sample
         document.getElementById('sampleForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const value = document.getElementById('cesium-value').value;
             const inspector = document.getElementById('inspector-name').value;
+            
+            document.getElementById('loading').style.display = 'block';
             
             try {
                 const response = await fetch(`${API_URL}/sample`, {
@@ -387,27 +798,28 @@
                 
                 const result = await response.json();
                 
+                document.getElementById('loading').style.display = 'none';
+                
                 if (result.success) {
-                    alert('✅ Sample added successfully!');
+                    alert('✅ Sample successfully recorded!');
                     closeModal();
-                    location.reload(); // Refresh to show updated data
+                    location.reload();
                 } else {
                     alert('❌ Error: ' + result.error);
                 }
             } catch (error) {
+                document.getElementById('loading').style.display = 'none';
                 console.error('Error submitting sample:', error);
-                alert('Failed to submit sample!');
+                alert('❌ Failed to submit sample!');
             }
         });
 
-        // Initialize app
         window.onload = () => {
             initMap();
             loadStats();
             loadFarms();
         };
 
-        // Close modal when clicking outside
         window.onclick = (event) => {
             const modal = document.getElementById('sampleModal');
             if (event.target === modal) {
