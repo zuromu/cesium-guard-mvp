@@ -1,1 +1,1 @@
-web: gunicorn cesium-guard-mvp.app:app
+web: gunicorn app:app
