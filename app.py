@@ -1,7 +1,4 @@
-# app.py
-# Flask backend for Shrimp Contamination Dashboard (zone circles: Sumatra, Java, Kalimantan, Sulawesi, Papua)
-# Run: pip install flask flask-cors
-#       python app.py
+
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
