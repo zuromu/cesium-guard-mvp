@@ -427,25 +427,13 @@ def require_role(allowed=None):
 # -----------------------
 @app.route("/")
 def root():
-    """Serve the main HTML page safely for deployment"""
-    # Try to serve index.html from the same directory as app.py or project root
-    try:
-        # Try local app directory first
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        index_path = os.path.join(base_dir, "index.html")
-        if os.path.exists(index_path):
-            return send_from_directory(base_dir, "index.html")
-        # Try project root (one level up)
-        parent_dir = os.path.dirname(base_dir)
-        index_path2 = os.path.join(parent_dir, "index.html")
-        if os.path.exists(index_path2):
-            return send_from_directory(parent_dir, "index.html")
-    except Exception as e:
-        print(f"[WARN] Could not serve index.html: {e}")
-    # Fallback: API status
+    """Health check endpoint"""
     return jsonify({
-        "status": "Cesium Guard API Running",
+        "status": "✅ Cesium Guard API Running",
         "version": "2.0",
+        "farms_loaded": len(FARMS),
+        "zones": len(ZONES_META),
+        "message": "System operational",
         "endpoints": [
             "/api/farms",
             "/api/zones",
@@ -739,6 +727,11 @@ def api_intel():
     """Serve synthesized insights for the action center"""
     return jsonify(compute_intel())
 
+# Health check for Railway
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "healthy", "farms": len(FARMS)}), 200
+
 # -----------------------
 # ERROR HANDLERS
 # -----------------------
@@ -754,13 +747,13 @@ def internal_error(error):
 # RUN SERVER
 # -----------------------
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
     print("=" * 60)
     print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
     print("=" * 60)
     print(f"📊 Loaded {len(FARMS)} farms across {len(ZONES_META)} zones")
-    print(f"🌐 Server starting at: http://127.0.0.1:5000")
-    print(f"📡 API endpoints available at: http://127.0.0.1:5000/api/")
+    print(f"🌐 Server starting on port: {port}")
+    print(f"📡 Health check: http://0.0.0.0:{port}/health")
     print("=" * 60)
     print("\nPress CTRL+C to stop\n")
-    port = int(os.getenv("PORT", 8000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)
