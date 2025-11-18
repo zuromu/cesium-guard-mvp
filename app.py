@@ -744,16 +744,16 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 # -----------------------
-# RUN SERVER
+# STARTUP
 # -----------------------
+print("=" * 60)
+print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
+print("=" * 60)
+print(f"📊 Loaded {len(FARMS)} farms across {len(ZONES_META)} zones")
+print("=" * 60)
+
+# For local development only
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
-    print("=" * 60)
-    print("🦐 CESIUM GUARD - Shrimp Contamination Monitoring System")
-    print("=" * 60)
-    print(f"📊 Loaded {len(FARMS)} farms across {len(ZONES_META)} zones")
-    print(f"🌐 Server starting on port: {port}")
-    print(f"📡 Health check: http://0.0.0.0:{port}/health")
-    print("=" * 60)
-    print("\nPress CTRL+C to stop\n")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    print(f"🌐 Local development server starting on port: {port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
