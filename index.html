@@ -1,831 +1,328 @@
-<!DOCTYPE html>
-<html lang="id">
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cesium Guard - AI-Powered Shrimp Farm Monitoring</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shrimp Contamination — Smart Monitor (Zones)</title>
 
-        /* Animated background particles */
-        .bg-particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            opacity: 0.1;
-            pointer-events: none;
-        }
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        .particle {
-            position: absolute;
-            background: white;
-            border-radius: 50%;
-            animation: float 20s infinite;
-        }
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 
-        @keyframes float {
-            0%, 100% { transform: translateY(0) translateX(0); }
-            25% { transform: translateY(-100px) translateX(50px); }
-            50% { transform: translateY(-50px) translateX(-30px); }
-            75% { transform: translateY(-80px) translateX(20px); }
-        }
-        
-        .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 20px 40px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-        }
+  <!-- Babel (dev) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+  <!-- Leaflet + heat plugin -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
-        .logo-icon {
-            font-size: 32px;
-            animation: bounce 2s infinite;
-        }
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-        }
-
-        .logo-text {
-            font-size: 24px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .nav-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-section {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-            padding: 20px;
-        }
-
-        .hero-title {
-            font-size: 48px;
-            font-weight: 800;
-            margin-bottom: 10px;
-            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-            letter-spacing: -1px;
-        }
-
-        .hero-subtitle {
-            font-size: 18px;
-            opacity: 0.95;
-            font-weight: 400;
-            letter-spacing: 0.5px;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 28px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 2px solid transparent;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 12px 48px rgba(102, 126, 234, 0.3);
-            border-color: #667eea;
-        }
-
-        .stat-icon {
-            font-size: 36px;
-            margin-bottom: 12px;
-            display: inline-block;
-        }
-        
-        .stat-number {
-            font-size: 40px;
-            font-weight: 800;
-            margin: 12px 0;
-            line-height: 1;
-        }
-        
-        .stat-label {
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .high { 
-            color: #ef4444;
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .medium { 
-            color: #f59e0b;
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .safe { 
-            color: #10b981;
-            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .map-container {
-            background: white;
-            border-radius: 24px;
-            padding: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-            margin-bottom: 30px;
-            border: 3px solid rgba(255, 255, 255, 0.8);
-        }
-
-        .map-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 0 10px;
-        }
-
-        .map-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1e293b;
-        }
-
-        .refresh-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-
-        .refresh-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        #map {
-            height: 550px;
-            border-radius: 16px;
-            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
-        
-        .leaflet-popup-content-wrapper {
-            border-radius: 16px;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-
-        .leaflet-popup-content {
-            margin: 0;
-            min-width: 280px;
-        }
-
-        .popup-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-        }
-        
-        .popup-title {
-            font-weight: 700;
-            font-size: 18px;
-            margin-bottom: 6px;
-        }
-
-        .popup-location {
-            opacity: 0.95;
-            font-size: 13px;
-        }
-
-        .popup-body {
-            padding: 20px;
-            background: white;
-        }
-        
-        .popup-info {
-            margin: 12px 0;
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .info-icon {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 700;
-            color: white;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .status-high { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .status-medium { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .status-safe { background: linear-gradient(135deg, #10b981, #059669); }
-        
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: 600;
-            margin-top: 16px;
-            width: 100%;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-            animation: fadeIn 0.3s;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .modal-content {
-            background: white;
-            margin: 5% auto;
-            padding: 0;
-            border-radius: 24px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideUp 0.3s;
-            overflow: hidden;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .modal-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            position: relative;
-        }
-        
-        .modal-header h2 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-        }
-
-        .modal-body {
-            padding: 30px;
-        }
-        
-        .form-group {
-            margin-bottom: 24px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #334155;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .form-group input {
-            width: 100%;
-            padding: 14px 18px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 15px;
-            transition: all 0.3s;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-        }
-        
-        .close {
-            position: absolute;
-            top: 30px;
-            right: 30px;
-            font-size: 32px;
-            font-weight: 300;
-            color: white;
-            cursor: pointer;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s;
-        }
-        
-        .close:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: rotate(90deg);
-        }
-        
-        .legend {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 24px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-            border: 2px solid rgba(102, 126, 234, 0.2);
-        }
-
-        .legend-title {
-            font-weight: 700;
-            margin-bottom: 16px;
-            color: #1e293b;
-            font-size: 16px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .legend-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px;
-            border-radius: 10px;
-            transition: all 0.3s;
-        }
-
-        .legend-item:hover {
-            background: rgba(102, 126, 234, 0.05);
-        }
-        
-        .legend-color {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        }
-
-        .legend-text {
-            font-size: 14px;
-            color: #475569;
-            font-weight: 500;
-        }
-
-        .footer {
-            text-align: center;
-            color: white;
-            padding: 30px;
-            margin-top: 40px;
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        .loading {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-        }
-
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-            .navbar {
-                padding: 15px 20px;
-            }
-
-            .hero-title {
-                font-size: 32px;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 15px;
-            }
-
-            .stat-card {
-                padding: 20px;
-            }
-
-            .stat-number {
-                font-size: 32px;
-            }
-
-            #map {
-                height: 400px;
-            }
-        }
-    </style>
+  <style>
+    html,body,#root { height:100%; }
+    body { background: #071024; color: #E6EEF8; font-family: Inter, system-ui, Arial; }
+    .leaflet-container { border-radius: 12px; }
+    .pulse {
+      border-radius:50%;
+      animation: pulse 1.8s infinite;
+      box-shadow: 0 0 0 6px rgba(255,0,0,0.15);
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255,0,0,0.15); }
+      70% { box-shadow: 0 0 0 12px rgba(255,0,0,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,0,0,0); }
+    }
+  </style>
 </head>
 <body>
-    <div class="bg-particles">
-        <div class="particle" style="width: 4px; height: 4px; top: 10%; left: 20%; animation-delay: 0s;"></div>
-        <div class="particle" style="width: 6px; height: 6px; top: 30%; left: 80%; animation-delay: 2s;"></div>
-        <div class="particle" style="width: 3px; height: 3px; top: 60%; left: 10%; animation-delay: 4s;"></div>
-        <div class="particle" style="width: 5px; height: 5px; top: 80%; left: 70%; animation-delay: 1s;"></div>
-        <div class="particle" style="width: 4px; height: 4px; top: 50%; left: 50%; animation-delay: 3s;"></div>
-    </div>
+  <div id="root" class="h-full"></div>
 
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-    </div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const API = '/api';
 
-    <nav class="navbar">
-        <div class="logo">
-            <div class="logo-icon">🦐</div>
-            <div class="logo-text">Cesium Guard</div>
-        </div>
-        <div class="nav-badge">AI-Powered Monitoring</div>
-    </nav>
+    function colorForSeverity(sev) {
+      if (sev === 'Critical') return '#7f1d1d';
+      if (sev === 'High') return '#dc2626';
+      if (sev === 'Medium') return '#f59e0b';
+      return '#16a34a';
+    }
 
-    <div class="container">
-        <div class="hero-section">
-            <h1 class="hero-title">Shrimp Farm Safety Monitor</h1>
-            <p class="hero-subtitle">Real-time cesium contamination tracking across Indonesia</p>
-        </div>
+    function App() {
+      const [farms, setFarms] = useState([]);
+      const [zones, setZones] = useState([]);
+      const [stats, setStats] = useState({});
+      const [selectedFarm, setSelectedFarm] = useState(null);
+      const [newSample, setNewSample] = useState({ farm_id:'', value:'', inspector:'' });
+      const mapRef = useRef(null);
+      const markersRef = useRef([]);
+      const heatRef = useRef(null);
+      const zoneLayersRef = useRef([]);
+      const timeseriesChartRef = useRef(null);
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">🏭</div>
-                <div class="stat-label">Total Farms</div>
-                <div class="stat-number" id="total-farms">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⚠️</div>
-                <div class="stat-label">High Risk</div>
-                <div class="stat-number high" id="high-risk">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⚡</div>
-                <div class="stat-label">Medium Risk</div>
-                <div class="stat-number medium" id="medium-risk">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">✅</div>
-                <div class="stat-label">Safe</div>
-                <div class="stat-number safe" id="safe">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-label">Avg Cesium (ppb)</div>
-                <div class="stat-number" style="color: #667eea;" id="avg-cesium">-</div>
-            </div>
-        </div>
+      // load all
+      async function loadAll() {
+        try {
+          const [fRes, zRes, sRes, hRes] = await Promise.all([
+            fetch(API + '/f
 
-        <div class="map-container">
-            <div class="map-header">
-                <div class="map-title">📍 Live Map View</div>
-                <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Data</button>
-            </div>
-            <div id="map"></div>
-        </div>
-        
-        <div class="legend">
-            <div class="legend-title">🎨 Risk Level Legend</div>
-            <div class="legend-grid">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(135deg, #10b981, #059669);"></div>
-                    <div class="legend-text"><strong>Safe:</strong> < 30 ppb</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(135deg, #f59e0b, #d97706);"></div>
-                    <div class="legend-text"><strong>Medium:</strong> 30-49 ppb</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(135deg, #ef4444, #dc2626);"></div>
-                    <div class="legend-text"><strong>High Risk:</strong> ≥ 50 ppb</div>
-                </div>
-            </div>
-        </div>
+arms').then(r=>r.json()),
+            fetch(API + '/zones').then(r=>r.json()),
+            fetch(API + '/stats').then(r=>r.json()),
+            fetch(API + '/heatmap').then(r=>r.json())
+          ]);
+          setFarms(fRes);
+          setZones(zRes);
+          setStats(sRes);
 
-        <div class="footer">
-            <p><strong>Cesium Guard</strong> | Powered by AI Technology | RISTEK Mini Hackathon 2025</p>
-        </div>
-    </div>
-
-    <!-- Modal -->
-    <div id="sampleModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📋 Add Contamination Sample</h2>
-                <span class="close" onclick="closeModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="sampleForm">
-                    <div class="form-group">
-                        <label>🏭 Farm Location</label>
-                        <input type="text" id="farm-name" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label>☢️ Cesium Level (ppb)</label>
-                        <input type="number" id="cesium-value" placeholder="Enter measurement" required step="0.1" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>👤 Inspector Name</label>
-                        <input type="text" id="inspector-name" placeholder="Your name" required>
-                    </div>
-                    <button type="submit" class="btn">✅ Submit Sample</button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const API_URL = 'http://127.0.0.1:5000/api';
-        let map;
-        let currentFarmId = null;
-
-        function initMap() {
-            map = L.map('map').setView([-6.5, 110.0], 7);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 18
-            }).addTo(map);
+          // heat points
+          if (heatRef.current) {
+            heatRef.current.setLatLngs(hRes.points.map(p => [p[0], p[1], p[2]]));
+          }
+        } catch (e) {
+          console.error(e);
         }
+      }
 
-        async function loadStats() {
-            try {
-                const response = await fetch(`${API_URL}/stats`);
-                const stats = await response.json();
-                
-                document.getElementById('total-farms').textContent = stats.total_farms;
-                document.getElementById('high-risk').textContent = stats.high_risk;
-                document.getElementById('medium-risk').textContent = stats.medium_risk;
-                document.getElementById('safe').textContent = stats.safe;
-                document.getElementById('avg-cesium').textContent = stats.avg_cesium;
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
+      useEffect(() => {
+        // init map
+        if (mapRef.current) return;
+        const map = L.map('map', { zoomControl: true }).setView([-2.5, 118], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-        async function loadFarms() {
-            try {
-                const response = await fetch(`${API_URL}/farms`);
-                const farms = await response.json();
-                
-                farms.forEach(farm => {
-                    const colors = {
-                        "High": "#ef4444",
-                        "Medium": "#f59e0b",
-                        "Safe": "#10b981"
-                    };
-                    
-                    const color = colors[farm.status];
-                    
-                    const marker = L.circleMarker([farm.lat, farm.lng], {
-                        color: color,
-                        fillColor: color,
-                        fillOpacity: 0.8,
-                        radius: 14,
-                        weight: 3
-                    }).addTo(map);
-                    
-                    const popupContent = `
-                        <div class="popup-header">
-                            <div class="popup-title">${farm.name}</div>
-                            <div class="popup-location">📍 ${farm.location}</div>
-                        </div>
-                        <div class="popup-body">
-                            <div class="popup-info">
-                                <div class="info-icon" style="background: ${color}20; color: ${color};">📊</div>
-                                <div>
-                                    Status: <span class="status-badge status-${farm.status.toLowerCase()}">${farm.status}</span>
-                                </div>
-                            </div>
-                            <div class="popup-info">
-                                <div class="info-icon" style="background: #e0e7ff; color: #667eea;">☢️</div>
-                                <div><strong>Cesium:</strong> ${farm.value} ppb</div>
-                            </div>
-                            <div class="popup-info">
-                                <div class="info-icon" style="background: #dbeafe; color: #3b82f6;">📋</div>
-                                <div><strong>Samples:</strong> ${farm.history.length} records</div>
-                            </div>
-                            <button class="btn" onclick="openModal(${farm.id}, '${farm.name}')">
-                                ➕ Add New Sample
-                            </button>
-                        </div>
-                    `;
-                    
-                    marker.bindPopup(popupContent, { maxWidth: 300 });
-                    
-                    if (farm.status === "High") {
-                        L.circle([farm.lat, farm.lng], {
-                            radius: 5000,
-                            color: "#ef4444",
-                            fillColor: "#ef4444",
-                            fillOpacity: 0.15,
-                            weight: 2,
-                            dashArray: '10, 10'
-                        }).addTo(map).bindPopup(`
-                            <div style="text-align: center; padding: 10px;">
-                                <strong style="color: #ef4444; font-size: 16px;">⚠️ Risk Zone</strong><br>
-                                <span style="color: #64748b;">5km radius around ${farm.name}</span>
-                            </div>
-                        `);
-                    }
-                });
-            } catch (error) {
-                console.error('Error loading farms:', error);
-                alert('⚠️ Failed to load farms. Make sure backend is running at http://127.0.0.1:5000');
-            }
-        }
+        // heat
+        const heat = L.heatLayer([], { radius: 25, blur: 35, maxZoom: 12 }).addTo(map);
+        heatRef.current = heat;
 
-        function openModal(farmId, farmName) {
-            currentFarmId = farmId;
-            document.getElementById('farm-name').value = farmName;
-            document.getElementById('sampleModal').style.display = 'block';
-        }
+        mapRef.current = map;
+        loadAll();
 
-        function closeModal() {
-            document.getElementById('sampleModal').style.display = 'none';
-            document.getElementById('sampleForm').reset();
-        }
+        // poll every 12s for live feel
+        const iv = setInterval(loadAll, 12000);
+        return () => clearInterval(iv);
+      }, []);
 
-        document.getElementById('sampleForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const value = document.getElementById('cesium-value').value;
-            const inspector = document.getElementById('inspector-name').value;
-            
-            document.getElementById('loading').style.display = 'block';
-            
-            try {
-                const response = await fetch(`${API_URL}/sample`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        farm_id: currentFarmId,
-                        value: parseFloat(value),
-                        inspector: inspector
-                    })
-                });
-                
-                const result = await response.json();
-                
-                document.getElementById('loading').style.display = 'none';
-                
-                if (result.success) {
-                    alert('✅ Sample successfully recorded!');
-                    closeModal();
-                    location.reload();
-                } else {
-                    alert('❌ Error: ' + result.error);
-                }
-            } catch (error) {
-                document.getElementById('loading').style.display = 'none';
-                console.error('Error submitting sample:', error);
-                alert('❌ Failed to submit sample!');
-            }
+      // update markers when farms change
+      useEffect(() => {
+        const map = mapRef.current; if (!map) return;
+        // remove existing markers
+        markersRef.current.forEach(m => map.removeLayer(m)); markersRef.current = [];
+        farms.forEach(f => {
+          const el = document.createElement('div');
+          el.style.width = '14px';
+          el.style.height = '14px';
+          el.style.borderRadius = '50%';
+          el.style.border = '2px solid white';
+          // color by status
+          let bg = '#16a34a';
+          if (f.status === 'High') bg = '#f97316';
+          if (f.status === 'Critical') bg = '#ef4444';
+          if (f.status === 'Medium') bg = '#f59e0b';
+          el.style.background = bg;
+          if (f.status === 'Critical') el.classList.add('pulse');
+          const icon = L.divIcon({ html: el.outerHTML, className:'', iconSize:[24,24], iconAnchor:[12,12] });
+          const m = L.marker([f.lat, f.lng], { icon }).addTo(map);
+          m.bindPopup(`<strong>${f.name}</strong><br/>${f.location}<br/><b>${f.value} ppb</b><br/>Status: ${f.status}<br/>Last: ${new Date(f.lastUpdate).toLocaleString()}<hr/><div style="max-height:140px;overflow:auto;">History:<br/>${(f.history||[]).slice().reverse().map(h=>`${new Date(h.time).toLocaleString()} — ${h.inspector}: ${h.value} ppb`).join('<br/>')}</div>`);
+          markersRef.current.push(m);
         });
+      }, [farms]);
 
-        window.onload = () => {
-            initMap();
-            loadStats();
-            loadFarms();
-        };
+      // update zones (circles)
+      useEffect(() => {
+        const map = mapRef.current; if (!map) return;
+        zoneLayersRef.current.forEach(l => map.removeLayer(l)); zoneLayersRef.current = [];
+        zones.forEach(z => {
+          const color = colorForSeverity(z.severity || z.severity);
+          // draw circle using center and radius_m
+          const circle = L.circle(z.center, {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.12,
+            radius: z.radius_m || 40000,
+            weight: 1.5
+          }).addTo(map);
+          circle.bindPopup(`<strong>${z.name}</strong><br/>Avg: ${z.avg} ppb<br/>Severity: ${z.severity}<br/>Farms: ${z.count_farms}<br/>Top: ${z.top_farm ? (z.top_farm.name + ' (' + z.top_farm.value + ' ppb)') : '-'}`);
+          zoneLayersRef.current.push(circle);
+        });
+      }, [zones]);
 
-        window.onclick = (event) => {
-            const modal = document.getElementById('sampleModal');
-            if (event.target === modal) {
-                closeModal();
-            }
-        };
-    </script>
+      // draw timeseries chart
+      useEffect(() => {
+        const ctx = document.getElementById('timeseries');
+        if (!ctx) return;
+        const tdata = stats.timeseries || [];
+        const labels = tdata.map(p => p.t);
+        const vals = tdata.map(p => p.v);
+        if (timeseriesChartRef.current) {
+          timeseriesChartRef.current.data.labels = labels;
+          timeseriesChartRef.current.data.datasets[0].data = vals;
+          timeseriesChartRef.current.update();
+        } else {
+          timeseriesChartRef.current = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets: [{ label:'Avg ppb', data: vals, borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.12)', tension:0.25, pointRadius:2 }]},
+            options: { plugins:{ legend:{display:false} }, scales:{ x:{ ticks:{ color:'#cbd5e1' } }, y:{ ticks:{ color:'#cbd5e1' } } } }
+          });
+        }
+      }, [stats]);
+
+      async function submitSample(e) {
+        e && e.preventDefault();
+        if (!newSample.farm_id || newSample.value==='') { alert('Complete form'); return; }
+        const res = await fetch(API + '/samples', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ farm_id: Number(newSample.farm_id), value: Number(newSample.value), inspector: newSample.inspector || 'field' })});
+        const j = await res.json();
+        if (j.success) {
+          setNewSample({ farm_id:'', value:'', inspector:'' });
+          await loadAll();
+          alert('Sample added');
+        } else {
+          alert('Error: ' + (j.error || j.message || 'unknown'));
+        }
+      }
+
+      async function simulate() {
+        await fetch(API + '/simulate');
+        await loadAll();
+      }
+
+      // top hotspots
+      const top = (stats.top_hotspots || []).slice(0,5);
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* header */}
+          <header className="bg-slate-900/70 px-6 py-3 border-b border-slate-700">
+            <div className="max-w-[1400px] mx-auto flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-500 rounded-lg flex items-center justify-center">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 12c0 5 4 9 9 9s9-4 9-9" stroke="#fff" strokeWidth="1.2"/></svg>
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold">Shrimp Contamination — Smart Monitor</h1>
+                  <div className="text-xs text-slate-400">Live zones, hotspots & actionable stats</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={loadAll} className="px-3 py-2 bg-slate-800 rounded">Refresh</button>
+                <button onClick={simulate} className="px-3 py-2 bg-orange-500 rounded">Simulate</button>
+                <div className="text-xs text-slate-400 text-right">
+                  <div>Last checked</div>
+                  <div className="font-semibold">{new Date().toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* main */}
+          <main className="flex-1 overflow-auto">
+            <div className="max-w-[1400px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
+              {/* left */}
+              <aside className="col-span-4 space-y-6">
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                  <h3 className="text-sm text-slate-300 mb-2">Dashboard Stats</h3>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="bg-slate-900 p-3 rounded text-center">
+                      <div className="text-xs text-slate-400">Farms</div>
+                      <div className="text-lg font-bold">{stats.total || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-3 rounded text-center">
+                      <div className="text-xs text-slate-400">Avg (ppb)</div>
+                      <div className="text-lg font-bold">{stats.avg || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-3 rounded text-center">
+                      <div className="text-xs text-slate-400">Max</div>
+                      <div className="text-lg font-bold">{stats.max || 0}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <div>Critical: <span className="font-semibold text-red-400">{stats.high||0}</span></div>
+                    <div>Medium: <span className="font-semibold text-orange-400">{stats.medium||0}</span></div>
+                    <div>Safe: <span className="font-semibold text-green-400">{stats.safe||0}</span></div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                  <h4 className="text-sm text-slate-300 mb-2">Top hotspots</h4>
+                  <ol className="list-decimal pl-4 text-sm">
+                    {top.length ? top.map(h => <li key={h.id}><strong>{h.name}</strong> — {h.value} ppb</li>) : <li className="text-slate-400">No data</li>}
+                  </ol>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                  <h4 className="text-sm text-slate-300 mb-2">Add sample</h4>
+                  <form onSubmit={submitSample} className="space-y-2">
+                    <select value={newSample.farm_id} onChange={e => setNewSample({...newSample, farm_id: e.target.value})} className="w-full p-2 bg-slate-900 rounded text-sm">
+                      <option value=''>-- pilih farm --</option>
+                      {farms.map(f => <option key={f.id} value={f.id}>{f.name} ({f.location})</option>)}
+                    </select>
+                    <input type="number" step="0.1" value={newSample.value} onChange={e => setNewSample({...newSample, value: e.target.value})} placeholder="Value (ppb)" className="w-full p-2 bg-slate-900 rounded text-sm"/>
+                    <input type="text" value={newSample.inspector} onChange={e => setNewSample({...newSample, inspector: e.target.value})} placeholder="Inspector" className="w-full p-2 bg-slate-900 rounded text-sm"/>
+                    <div className="flex gap-2">
+                      <button type="submit" className="flex-1 bg-blue-600 py-2 rounded">Submit</button>
+                      <button type="button" onClick={() => setNewSample({farm_id:'',value:'',inspector:''})} className="px-3 bg-slate-700 rounded">Reset</button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                  <h4 className="text-sm text-slate-300 mb-2">Recent trips</h4>
+                  <div className="text-xs text-slate-400">
+                    {(stats.recent_trips || []).map((t,i) => <div key={i} className="mb-2"><b>{t.location}</b><div className="text-slate-400 text-xs">{t.time}</div></div>)}
+                  </div>
+                </div>
+              </aside>
+
+              {/* main */}
+              <section className="col-span-8 space-y-6">
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">Indonesia — Live Contamination Map</h3>
+                    <div className="flex gap-2">
+                      <div className="px-2 py-1 rounded bg-red-600 text-sm">Critical</div>
+                      <div className="px-2 py-1 rounded bg-orange-500 text-sm">High</div>
+                      <div className="px-2 py-1 rounded bg-yellow-500 text-sm">Medium</div>
+                      <div className="px-2 py-1 rounded bg-green-600 text-sm">Safe</div>
+                    </div>
+                  </div>
+                  <div id="map" style={{height: 560}} className="rounded-lg overflow-hidden"></div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <h4 className="text-sm text-slate-300 mb-2">Average contamination — trend</h4>
+                    <canvas id="timeseries" height="120"></canvas>
+                  </div>
+                  <div>
+                    <h4 className="text-sm text-slate-300 mb-2">Zones summary</h4>
+                    <div className="space-y-2 text-sm">
+                      {zones.map(z => (
+                        <div key={z.id} className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">{z.name}</div>
+                            <div className="text-xs text-slate-400">Avg {z.avg} ppb — {z.count_farms} farms</div>
+                          </div>
+                          <div style={{width:14, height:14, background: colorForSeverity(z.severity), borderRadius:7}} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    // mount
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
 </body>
 </html>
