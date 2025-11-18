@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import random, statistics, math, os
+from uuid import uuid4
+from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
@@ -100,8 +102,25 @@ for f in FARMS:
     f["export_ready"] = f["status"] in ["Safe", "Medium"]
 
 # -----------------------
-# HELPER FUNCTIONS
+# AUTH + HELPER FUNCTIONS
 # -----------------------
+USERS = {
+    "admin": {
+        "password": "secureadmin",
+        "role": "admin",
+        "name": "National Control Center",
+        "team": "Cesium Guard Core"
+    },
+    "inspector": {
+        "password": "fieldops",
+        "role": "field",
+        "name": "Lapangan Inspector",
+        "team": "Mobile Rapid Response"
+    }
+}
+
+TOKENS = {}
+
 def get_status(value):
     """Determine contamination status based on ppb value"""
     if value >= THRESHOLD_CRITICAL:
@@ -233,6 +252,149 @@ def agg_stats():
         "timeseries": timeseries
     }
 
+def compute_intel():
+    """Generate higher-level insights for the dashboard action center"""
+    now_utc = datetime.utcnow()
+    stats = agg_stats()
+    zones = compute_zone_aggregation()
+
+    overdue = 0
+    for f in FARMS:
+        last = f.get("lastUpdate")
+        try:
+            last_dt = datetime.fromisoformat(last) if last else now_utc
+        except ValueError:
+            last_dt = now_utc
+        if now_utc - last_dt > timedelta(hours=36):
+            overdue += 1
+
+    high_alert_zones = [z for z in zones if z["severity"] in ("High", "Critical")]
+    priority_zones = []
+    for z in high_alert_zones[:3]:
+        action = "Deploy task force & lock exports" if z["severity"] == "Critical" else "Schedule intensified sampling"
+        priority_zones.append({
+            "name": z["name"],
+            "severity": z["severity"],
+            "avg": z["avg"],
+            "count": z["count_farms"],
+            "action": action
+        })
+
+    timeseries = stats.get("timeseries", [])
+    if len(timeseries) >= 2:
+        delta = round(timeseries[-1]["v"] - timeseries[-2]["v"], 2)
+        projection = round(timeseries[-1]["v"] + delta, 2)
+    elif timeseries:
+        delta = 0
+        projection = timeseries[-1]["v"]
+    else:
+        delta = 0
+        projection = stats["avg"]
+
+    signal = "stable"
+    if delta > 1.5:
+        signal = "rising"
+    elif delta < -1.5:
+        signal = "falling"
+
+    export_gateways = [
+        {
+            "name": "Tanjung Priok",
+            "status": "Surveillance" if stats["critical"] else "Normal",
+            "risk": "High" if stats["critical"] > 2 else ("Medium" if stats["high"] > 1 else "Low"),
+            "throughput": "52 shipments / week"
+        },
+        {
+            "name": "Belawan Medan",
+            "status": "Heightened sampling" if stats["high"] else "Normal",
+            "risk": "Medium" if stats["high"] else "Low",
+            "throughput": "31 shipments / week"
+        },
+        {
+            "name": "Makassar Port",
+            "status": "Normal",
+            "risk": "Low",
+            "throughput": "18 shipments / week"
+        }
+    ]
+
+    playbooks = [
+        {
+            "title": "North Java cold-chain sweep",
+            "owner": "HQ Compliance",
+            "status": "Green-lit",
+            "impact": "Verifies 12 processors before FDA inspection",
+            "cta": "Dispatch mobile XRF lab"
+        },
+        {
+            "title": "Delta remediation kit",
+            "owner": "Field Ops",
+            "status": "Queued",
+            "impact": "Deploy activated carbon treatment to critical ponds",
+            "cta": "Ship supplies via Surabaya hub"
+        },
+        {
+            "title": "Exporter confidence briefing",
+            "owner": "Trade Desk",
+            "status": "Drafting",
+            "impact": "Brief US buyers on containment steps & compliance metrics",
+            "cta": "Attach latest Cesium Guard export JSON"
+        }
+    ]
+
+    return {
+        "last_refresh": now_utc.isoformat(),
+        "sampling_backlog": overdue,
+        "pending_samples": stats["high"] + stats["critical"],
+        "sla_hours": 24,
+        "sla_pressure": round((overdue / stats["total"]) * 100, 1) if stats["total"] else 0,
+        "ai_projection": {
+            "next_avg": projection,
+            "delta": delta,
+            "signal": signal,
+            "confidence": 0.74
+        },
+        "priority_zones": priority_zones,
+        "export_gateways": export_gateways,
+        "playbooks": playbooks
+    }
+
+def generate_token(username):
+    token = str(uuid4())
+    TOKENS[token] = {
+        "username": username,
+        "issued_at": datetime.utcnow(),
+        "role": USERS[username]["role"],
+        "name": USERS[username]["name"],
+        "team": USERS[username]["team"]
+    }
+    return token
+
+def get_user_from_request():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.split(" ", 1)[1].strip()
+        return TOKENS.get(token)
+    return None
+
+def require_role(allowed=None):
+    """
+    Decorator-like helper for role protected endpoints.
+    allowed: list or None (means any authenticated)
+    """
+    def wrapper(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            user = get_user_from_request()
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
+            if allowed and user["role"] not in allowed:
+                return jsonify({"error": "Forbidden"}), 403
+            request.current_user = user
+            return func(*args, **kwargs)
+        return inner
+    return wrapper
+
 # -----------------------
 # API ENDPOINTS
 # -----------------------
@@ -248,6 +410,37 @@ def root():
             "endpoints": ["/api/farms", "/api/zones", "/api/stats", "/api/heatmap", "/api/samples", "/api/simulate"]
         })
 
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json() or {}
+    username = data.get("username", "").lower()
+    password = data.get("password", "")
+    if username not in USERS or USERS[username]["password"] != password:
+        return jsonify({"success": False, "error": "Invalid credentials"}), 401
+    token = generate_token(username)
+    profile = {
+        "username": username,
+        "role": USERS[username]["role"],
+        "name": USERS[username]["name"],
+        "team": USERS[username]["team"]
+    }
+    return jsonify({"success": True, "token": token, "profile": profile})
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.split(" ", 1)[1].strip()
+        TOKENS.pop(token, None)
+    return jsonify({"success": True})
+
+@app.route("/api/me", methods=["GET"])
+def api_me():
+    user = get_user_from_request()
+    if not user:
+        return jsonify({"authenticated": False}), 401
+    return jsonify({"authenticated": True, "profile": user})
+
 @app.route("/api/farms", methods=["GET"])
 def api_farms():
     """Get all farms with current contamination data"""
@@ -259,6 +452,16 @@ def api_farms():
     
     if status_filter:
         farms_filtered = [f for f in farms_filtered if f["status"].lower() == status_filter.lower()]
+
+    if zone_filter:
+        zone = zone_filter.lower()
+        center = ZONES_META.get(zone)
+        if center:
+            cy, cx = center["center"]
+            farms_filtered = [
+                f for f in farms_filtered
+                if abs(f["lat"] - cy) < 8 and abs(f["lng"] - cx) < 8
+            ]
     
     return jsonify(farms_filtered)
 
@@ -322,6 +525,24 @@ def api_stats():
         "compliance_rate": round((s["fda_compliant"] / s["total"]) * 100, 1) if s["total"] > 0 else 0
     }
     
+    s["recent_trips"] = [
+        {"location": "Makassar Premium Shrimp", "time": (now - timedelta(hours=5)).strftime("%d %b %Y %H:%M")},
+        {"location": "Padang Coastal Shrimp Farm", "time": (now - timedelta(hours=12)).strftime("%d %b %Y %H:%M")},
+        {"location": "Banyuwangi Shrimp Center", "time": (now - timedelta(days=1)).strftime("%d %b %Y %H:%M")}
+    ]
+
+    s["risk_matrix"] = {
+        "safe_pct": round((s["safe"] / s["total"]) * 100, 1) if s["total"] else 0,
+        "medium_pct": round((s["medium"] / s["total"]) * 100, 1) if s["total"] else 0,
+        "high_pct": round((s["high"] / s["total"]) * 100, 1) if s["total"] else 0,
+        "critical_pct": round((s["critical"] / s["total"]) * 100, 1) if s["total"] else 0,
+        "priority_actions": [
+            "Sinkronisasi data lab ke gudang pusat setiap 6 jam",
+            "Prioritaskan inspeksi di zona Critical lebih dari 48 jam",
+            "Aktifkan simulasi untuk stress-test rantai pasok"
+        ]
+    }
+
     return jsonify(s)
 
 @app.route("/api/heatmap", methods=["GET"])
@@ -331,6 +552,7 @@ def api_heatmap():
     return jsonify({"points": points})
 
 @app.route("/api/samples", methods=["POST"])
+@require_role(allowed=["admin", "field"])
 def api_samples():
     """Submit new contamination sample"""
     data = request.get_json() or {}
@@ -378,6 +600,7 @@ def api_samples():
     })
 
 @app.route("/api/simulate", methods=["GET"])
+@require_role(allowed=["admin"])
 def api_simulate():
     """Simulate random contamination changes for demo"""
     for f in FARMS:
@@ -400,6 +623,7 @@ def api_simulate():
     return jsonify({"success": True, "message": "Simulation completed", "timestamp": datetime.utcnow().isoformat()})
 
 @app.route("/api/export", methods=["GET"])
+@require_role(allowed=["admin"])
 def api_export():
     """Export data in JSON format for reporting"""
     export_data = {
@@ -447,6 +671,11 @@ def api_alerts():
             })
     
     return jsonify({"alerts": sorted(alerts, key=lambda x: x["value"], reverse=True), "count": len(alerts)})
+
+@app.route("/api/intel", methods=["GET"])
+def api_intel():
+    """Serve synthesized insights for the action center"""
+    return jsonify(compute_intel())
 
 # -----------------------
 # ERROR HANDLERS
