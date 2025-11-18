@@ -28,11 +28,19 @@ def ppb_to_bq(ppb):
 # ZONES (island centers used for circle placement)
 # -----------------------
 ZONES_META = {
-    "sumatra":  {"name": "Sumatra", "center": [0.7893, 101.4528]},
-    "java":     {"name": "Java",    "center": [-7.2756, 112.7977]},
-    "kalimantan":{"name":"Kalimantan","center":[-1.0, 114.0]},
-    "sulawesi": {"name": "Sulawesi","center":[-1.5, 121.0]},
-    "papua":    {"name": "Papua",   "center":[-4.0, 138.0]}
+    "aceh_strait": {"name": "Selat Malaka Utara", "center": [5.8, 97.1], "display_center": [5.8, 97.5]},
+    "riau_islands": {"name": "Kepulauan Riau", "center": [1.2, 104.3], "display_center": [1.2, 104.7]},
+    "west_sumatra": {"name": "Pesisir Barat Sumatra", "center": [-1.0, 100.2], "display_center": [-1.0, 99.4]},
+    "south_sumatra": {"name": "Teluk Lampung", "center": [-5.6, 105.4], "display_center": [-5.4, 106.0]},
+    "pantura_java": {"name": "Pantura Jawa", "center": [-6.0, 111.0], "display_center": [-5.8, 111.5]},
+    "east_java": {"name": "Selatan Jawa Timur", "center": [-8.4, 113.8], "display_center": [-8.2, 114.5]},
+    "bali_ntt": {"name": "Bali & Nusa Tenggara", "center": [-8.6, 115.8], "display_center": [-8.3, 115.8]},
+    "mahakam_delta": {"name": "Delta Mahakam", "center": [-0.4, 117.5], "display_center": [-0.2, 118.0]},
+    "kapuas_estuary": {"name": "Muara Kapuas", "center": [0.05, 109.2], "display_center": [0.4, 109.2]},
+    "makassar_strait": {"name": "Teluk Makassar", "center": [-4.5, 119.6], "display_center": [-4.3, 120.0]},
+    "tomini_bay": {"name": "Teluk Tomini", "center": [0.9, 123.1], "display_center": [1.1, 123.8]},
+    "maluku_sea": {"name": "Laut Maluku", "center": [-3.3, 128.4], "display_center": [-3.1, 129.0]},
+    "papua_north": {"name": "Pantai Utara Papua", "center": [-1.5, 139.8], "display_center": [-1.2, 140.3]}
 }
 
 # -----------------------
@@ -58,16 +66,33 @@ def make_history(base, days=7):
 
 # More realistic farm data
 FARMS = [
-    {"id": 1, "name": "Tambak Udang Medan Prima", "location": "Medan, North Sumatra", "lat": 3.5952, "lng": 98.6722, "operator": "CV Maju Jaya", "capacity": "15 ha"},
-    {"id": 2, "name": "Padang Coastal Shrimp Farm", "location": "Padang, West Sumatra", "lat": -0.9471, "lng": 100.4172, "operator": "PT Samudra Raya", "capacity": "8 ha"},
-    {"id": 3, "name": "Jakarta Bay Aquaculture", "location": "Jakarta, Java", "lat": -6.2000, "lng": 106.8166, "operator": "PT Bahari Nusantara", "capacity": "12 ha"},
-    {"id": 4, "name": "Surabaya Delta Farm", "location": "Surabaya, East Java", "lat": -7.2575, "lng": 112.7521, "operator": "CV Delta Prima", "capacity": "20 ha"},
-    {"id": 5, "name": "Lampung Export Shrimp", "location": "Lampung, Sumatra", "lat": -5.4292, "lng": 105.2619, "operator": "PT Lampung Sejahtera", "capacity": "18 ha"},
-    {"id": 6, "name": "Cirebon Coastal Farm", "location": "Cirebon, West Java", "lat": -6.7063, "lng": 108.5571, "operator": "CV Cirebon Makmur", "capacity": "10 ha"},
-    {"id": 7, "name": "Samarinda Delta Aqua", "location": "Samarinda, East Kalimantan", "lat": -0.5021, "lng": 117.1537, "operator": "PT Kalimantan Shrimp", "capacity": "25 ha"},
-    {"id": 8, "name": "Makassar Premium Shrimp", "location": "Makassar, South Sulawesi", "lat": -5.1477, "lng": 119.4327, "operator": "CV Sulawesi Aqua", "capacity": "14 ha"},
-    {"id": 9, "name": "Jayapura Bio Farm", "location": "Jayapura, Papua", "lat": -2.5339, "lng": 140.7181, "operator": "PT Papua Marine", "capacity": "6 ha"},
-    {"id": 10, "name": "Banyuwangi Shrimp Center", "location": "Banyuwangi, East Java", "lat": -8.2194, "lng": 114.3691, "operator": "CV Jawa Timur Makmur", "capacity": "16 ha"},
+    {"id": 1, "name": "Aceh Lhokseumawe Aqua", "location": "Lhokseumawe, Aceh", "lat": 5.188, "lng": 97.115, "operator": "PT Samudra Aceh", "capacity": "14 ha"},
+    {"id": 2, "name": "Batam Strait Mariculture", "location": "Batam, Riau Islands", "lat": 1.104, "lng": 104.019, "operator": "PT Barelang Farms", "capacity": "9 ha"},
+    {"id": 3, "name": "Bintan Deepwater Shrimp", "location": "Bintan, Riau Islands", "lat": 1.005, "lng": 104.566, "operator": "CV Segara Timur", "capacity": "7 ha"},
+    {"id": 4, "name": "Tambak Udang Medan Prima", "location": "Medan, North Sumatra", "lat": 3.5952, "lng": 98.6722, "operator": "CV Maju Jaya", "capacity": "15 ha"},
+    {"id": 5, "name": "Padang Coastal Shrimp Farm", "location": "Padang, West Sumatra", "lat": -0.9471, "lng": 100.4172, "operator": "PT Samudra Raya", "capacity": "8 ha"},
+    {"id": 6, "name": "Bengkulu Bluewater Estate", "location": "Bengkulu, Sumatra", "lat": -3.85, "lng": 102.3, "operator": "PT Laut Biru", "capacity": "11 ha"},
+    {"id": 7, "name": "Lampung Export Shrimp", "location": "Lampung, Sumatra", "lat": -5.4292, "lng": 105.2619, "operator": "PT Lampung Sejahtera", "capacity": "18 ha"},
+    {"id": 8, "name": "Jakarta Bay Aquaculture", "location": "Jakarta, Java", "lat": -6.2, "lng": 106.8166, "operator": "PT Bahari Nusantara", "capacity": "12 ha"},
+    {"id": 9, "name": "Indramayu Saltline Farm", "location": "Indramayu, West Java", "lat": -6.311, "lng": 108.32, "operator": "CV Garam Laut", "capacity": "10 ha"},
+    {"id": 10, "name": "Jepara Mangrove Shrimp", "location": "Jepara, Central Java", "lat": -6.565, "lng": 110.7, "operator": "PT Pantura Protein", "capacity": "9 ha"},
+    {"id": 11, "name": "Cilacap Southern Shield", "location": "Cilacap, Central Java", "lat": -7.71, "lng": 109.01, "operator": "CV Samudra Kidul", "capacity": "13 ha"},
+    {"id": 12, "name": "Surabaya Delta Farm", "location": "Surabaya, East Java", "lat": -7.2575, "lng": 112.7521, "operator": "CV Delta Prima", "capacity": "20 ha"},
+    {"id": 13, "name": "Sidoarjo Smart Shrimp", "location": "Sidoarjo, East Java", "lat": -7.45, "lng": 112.73, "operator": "PT Delta Cerdas", "capacity": "22 ha"},
+    {"id": 14, "name": "Banyuwangi Shrimp Center", "location": "Banyuwangi, East Java", "lat": -8.2194, "lng": 114.3691, "operator": "CV Jawa Timur Makmur", "capacity": "16 ha"},
+    {"id": 15, "name": "Bali Negara Hatchery", "location": "Negara, Bali", "lat": -8.29, "lng": 114.65, "operator": "PT Bali Pertiwi", "capacity": "6 ha"},
+    {"id": 16, "name": "Lombok Blue Horizon", "location": "Lombok, NTB", "lat": -8.55, "lng": 116.1, "operator": "CV Samudra Lombok", "capacity": "12 ha"},
+    {"id": 17, "name": "Balikpapan Delta Fresh", "location": "Balikpapan, East Kalimantan", "lat": -1.18, "lng": 116.85, "operator": "PT Delta Hijau", "capacity": "19 ha"},
+    {"id": 18, "name": "Samarinda Delta Aqua", "location": "Samarinda, East Kalimantan", "lat": -0.5021, "lng": 117.1537, "operator": "PT Kalimantan Shrimp", "capacity": "25 ha"},
+    {"id": 19, "name": "Tarakan Northern Gate", "location": "Tarakan, North Kalimantan", "lat": 3.3, "lng": 117.6, "operator": "PT Tarakan Sejahtera", "capacity": "14 ha"},
+    {"id": 20, "name": "Kapuas Mangrove Estate", "location": "Pontianak, West Kalimantan", "lat": -0.02, "lng": 109.33, "operator": "CV Kapuas Abadi", "capacity": "10 ha"},
+    {"id": 21, "name": "Makassar Premium Shrimp", "location": "Makassar, South Sulawesi", "lat": -5.1477, "lng": 119.4327, "operator": "CV Sulawesi Aqua", "capacity": "14 ha"},
+    {"id": 22, "name": "Bone Regency Farms", "location": "Bone, South Sulawesi", "lat": -4.15, "lng": 120.15, "operator": "PT Bone Laut", "capacity": "11 ha"},
+    {"id": 23, "name": "Gorontalo Gulf Hatchery", "location": "Gorontalo, North Sulawesi", "lat": 0.55, "lng": 123.0, "operator": "CV Teluk Nusantara", "capacity": "7 ha"},
+    {"id": 24, "name": "Ambon Integrated Shrimp", "location": "Ambon, Maluku", "lat": -3.65, "lng": 128.2, "operator": "PT Maluku Lestari", "capacity": "9 ha"},
+    {"id": 25, "name": "Jayapura Bio Farm", "location": "Jayapura, Papua", "lat": -2.5339, "lng": 140.7181, "operator": "PT Papua Marine", "capacity": "6 ha"},
+    {"id": 26, "name": "Sorong Outer Reef Park", "location": "Sorong, West Papua", "lat": -0.87, "lng": 131.25, "operator": "CV Raja Ampat Foods", "capacity": "8 ha"},
+    {"id": 27, "name": "Kupang Nusantara Aqua", "location": "Kupang, NTT", "lat": -10.18, "lng": 123.6, "operator": "PT Timur Biru", "capacity": "5 ha"}
 ]
 
 # Initialize farms with realistic base values
@@ -121,6 +146,18 @@ USERS = {
 
 TOKENS = {}
 
+def closest_zone_id(lat, lng):
+    """Find closest zone center to a coordinate"""
+    best = None
+    bestd = float("inf")
+    for zid, meta in ZONES_META.items():
+        cy, cx = meta["center"]
+        d = (cy - lat)**2 + (cx - lng)**2
+        if d < bestd:
+            bestd = d
+            best = zid
+    return best
+
 def get_status(value):
     """Determine contamination status based on ppb value"""
     if value >= THRESHOLD_CRITICAL:
@@ -141,17 +178,11 @@ def compute_zone_aggregation():
 
     # Assign farms to nearest zone
     for f in FARMS:
-        lat, lng = f["lat"], f["lng"]
-        best = None
-        bestd = 1e9
-        for zid, meta in ZONES_META.items():
-            cy, cx = meta["center"]
-            d = (cy - lat)**2 + (cx - lng)**2
-            if d < bestd:
-                bestd = d
-                best = zid
-        zone_values[best].append(f["value"])
-        zone_farms[best].append(f)
+        zid = closest_zone_id(f["lat"], f["lng"])
+        if not zid:
+            continue
+        zone_values[zid].append(f["value"])
+        zone_farms[zid].append(f)
 
     zones_out = []
     for zid, meta in ZONES_META.items():
@@ -174,7 +205,7 @@ def compute_zone_aggregation():
         zones_out.append({
             "id": zid,
             "name": meta["name"],
-            "center": meta["center"],
+            "center": meta.get("display_center", meta["center"]),
             "avg": avg_val,
             "avg_bq": ppb_to_bq(avg_val),
             "severity": severity,
@@ -318,29 +349,25 @@ def compute_intel():
         }
     ]
 
-    playbooks = [
-        {
-            "title": "North Java cold-chain sweep",
-            "owner": "HQ Compliance",
-            "status": "Green-lit",
-            "impact": "Verifies 12 processors before FDA inspection",
-            "cta": "Dispatch mobile XRF lab"
-        },
-        {
-            "title": "Delta remediation kit",
-            "owner": "Field Ops",
-            "status": "Queued",
-            "impact": "Deploy activated carbon treatment to critical ponds",
-            "cta": "Ship supplies via Surabaya hub"
-        },
-        {
-            "title": "Exporter confidence briefing",
-            "owner": "Trade Desk",
-            "status": "Drafting",
-            "impact": "Brief US buyers on containment steps & compliance metrics",
-            "cta": "Attach latest Cesium Guard export JSON"
-        }
-    ]
+    sampling_queue = []
+    for f in FARMS:
+        zid = closest_zone_id(f["lat"], f["lng"])
+        last = f.get("lastUpdate")
+        try:
+            last_dt = datetime.fromisoformat(last) if last else now_utc
+        except ValueError:
+            last_dt = now_utc
+        overdue_hours = (now_utc - last_dt).total_seconds() / 3600
+        if overdue_hours > 36:
+            sampling_queue.append({
+                "id": f["id"],
+                "name": f["name"],
+                "zone": ZONES_META.get(zid, {}).get("name", zid),
+                "last_update": last_dt.strftime("%d %b %H:%M"),
+                "value": f["value"],
+                "severity": f["status"]
+            })
+    sampling_queue = sorted(sampling_queue, key=lambda x: x["value"], reverse=True)[:6]
 
     return {
         "last_refresh": now_utc.isoformat(),
@@ -356,7 +383,7 @@ def compute_intel():
         },
         "priority_zones": priority_zones,
         "export_gateways": export_gateways,
-        "playbooks": playbooks
+        "sampling_queue": sampling_queue
     }
 
 def generate_token(username):
@@ -455,13 +482,10 @@ def api_farms():
 
     if zone_filter:
         zone = zone_filter.lower()
-        center = ZONES_META.get(zone)
-        if center:
-            cy, cx = center["center"]
-            farms_filtered = [
-                f for f in farms_filtered
-                if abs(f["lat"] - cy) < 8 and abs(f["lng"] - cx) < 8
-            ]
+        farms_filtered = [
+            f for f in farms_filtered
+            if closest_zone_id(f["lat"], f["lng"]) == zone
+        ]
     
     return jsonify(farms_filtered)
 
@@ -603,21 +627,38 @@ def api_samples():
 @require_role(allowed=["admin"])
 def api_simulate():
     """Simulate random contamination changes for demo"""
+    # Precompute zone averages for gentle mean-reversion
+    zone_snapshot = {}
     for f in FARMS:
-        change = random.uniform(-8, 10)
-        newv = round(max(0, f["value"] + change), 2)
+        zid = closest_zone_id(f["lat"], f["lng"])
+        zone_snapshot.setdefault(zid, []).append(f["value"])
+
+    zone_avg = {zid: statistics.mean(vals) if vals else 30 for zid, vals in zone_snapshot.items()}
+
+    for f in FARMS:
+        zid = closest_zone_id(f["lat"], f["lng"])
+        avg = zone_avg.get(zid, 30)
+        random_variation = random.uniform(-4.5, 5.5)
+        trend_correction = (avg - f["value"]) * 0.15
+        seasonal = math.sin(random.random() * math.pi) * 1.2
+        newv = f["value"] + random_variation + trend_correction + seasonal
+        newv = max(0, min(72, round(newv, 2)))
         
-        f.setdefault("history", []).append({
+        history = f.setdefault("history", [])
+        history.append({
             "time": datetime.utcnow().isoformat(),
             "inspector": "auto-sim",
             "value": newv,
             "notes": "Simulated data"
         })
+        # Keep history manageable
+        if len(history) > 30:
+            del history[0]
         
         f["value"] = newv
         f["value_bq"] = ppb_to_bq(newv)
         f["status"] = get_status(newv)
-        f["lastUpdate"] = f["history"][-1]["time"]
+        f["lastUpdate"] = history[-1]["time"]
         f["export_ready"] = f["status"] in ["Safe", "Medium"]
     
     return jsonify({"success": True, "message": "Simulation completed", "timestamp": datetime.utcnow().isoformat()})
