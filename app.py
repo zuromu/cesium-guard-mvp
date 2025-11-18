@@ -6,7 +6,17 @@ from uuid import uuid4
 from functools import wraps
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Request logging middleware
+@app.before_request
+def log_request():
+    print(f"[REQUEST] {request.method} {request.path} from {request.remote_addr}")
+
+@app.after_request
+def log_response(response):
+    print(f"[RESPONSE] {request.path} -> {response.status_code}")
+    return response
 
 # -----------------------
 # CONFIGURATION
@@ -425,26 +435,21 @@ def require_role(allowed=None):
 # -----------------------
 # API ENDPOINTS
 # -----------------------
+# Health check for Railway - MUST respond quickly
+@app.route("/health", methods=["GET", "HEAD"])
+def health():
+    return "OK", 200
+
 @app.route("/")
 def root():
     """Health check endpoint"""
     return jsonify({
-        "status": "✅ Cesium Guard API Running",
+        "status": "ok",
+        "message": "Cesium Guard API Running",
         "version": "2.0",
         "farms_loaded": len(FARMS),
-        "zones": len(ZONES_META),
-        "message": "System operational",
-        "endpoints": [
-            "/api/farms",
-            "/api/zones",
-            "/api/stats",
-            "/api/heatmap",
-            "/api/samples",
-            "/api/simulate",
-            "/api/alerts",
-            "/api/intel"
-        ]
-    })
+        "zones": len(ZONES_META)
+    }), 200
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
