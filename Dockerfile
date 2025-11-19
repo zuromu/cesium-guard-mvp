@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "echo PORT=$PORT && gunicorn --bind 0.0.0.0:$PORT app:app --log-level debug"]
+CMD ["sh", "-c", "echo PORT=$PORT && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 app:app --log-level debug"]
