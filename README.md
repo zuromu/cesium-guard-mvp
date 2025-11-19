@@ -60,7 +60,7 @@ cesium-guard-mvp/
 
 ```bash
 # 1. clone & enter repo
-git clone https://github.com/YOUR-USERNAME/cesium-guard-mvp.git
+git clone https://github.com/zuromu/cesium-guard-mvp.git
 cd cesium-guard-mvp
 
 # 2. install deps
@@ -70,7 +70,7 @@ pip install -r requirements.txt
 python app.py
 
 # 4. open dashboard
-open http://127.0.0.1:5000
+open http://0.0.0.0:8000/
 ```
 
 > **Tip:** gunakan akun demo di atas untuk mencoba peran admin dan field inspector.
