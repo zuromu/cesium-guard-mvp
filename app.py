@@ -9,6 +9,9 @@ app = Flask(__name__)
 CORS(app)
 app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False  # Production best practice
 
+print(">>> Current working dir:", os.getcwd())
+print(">>> Files:", os.listdir(os.getcwd()))
+
 # -----------------------
 # CONFIGURATION
 # -----------------------
