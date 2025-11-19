@@ -23,4 +23,4 @@ ENV PORT=8000
 EXPOSE 8000
 
 # Start the Flask app with Gunicorn
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app --log-level debug --access-logfile - --error-logfile -"]
