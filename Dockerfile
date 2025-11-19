@@ -11,6 +11,4 @@ COPY . .
 
 EXPOSE 8080
 
-RUN rm -f gunicorn.conf.py
-
-CMD gunicorn --bind 0.0.0.0:$PORT app:app --log-level debug --access-logfile - --error-logfile -
+CMD ["sh", "-c", "echo PORT=$PORT && gunicorn --bind 0.0.0.0:$PORT app:app --log-level debug"]
