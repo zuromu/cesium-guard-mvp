@@ -1,6 +1,9 @@
 # Use official Python base image
 FROM python:3.11-slim
 
+# avoid buffering (logs appear immediately)
+ENV PYTHONUNBUFFERED=1
+
 # Set working directory
 WORKDIR /app
 
